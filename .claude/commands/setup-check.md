@@ -6,11 +6,6 @@ Purpose: validate GogOS local environment.
 
 Steps:
 
-1. Run the setup check script once implemented.
-2. Verify Python version is 3.11+.
-3. Verify required folders exist.
-4. Verify `.env` exists or instruct user to copy `.env.example`.
-5. Verify Google credentials file exists if Google modules are enabled.
-6. Report missing items clearly.
+1. Run `python -m gogos.system.setup_check` and report its output verbatim.
 
 Never create credentials or tokens.
