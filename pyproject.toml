@@ -1,0 +1,19 @@
+[project]
+name = "gogos"
+version = "0.1.0"
+description = "Local-first Claude Code-native personal operating system"
+requires-python = ">=3.11"
+dependencies = [
+  "google-api-python-client",
+  "google-auth-httplib2",
+  "google-auth-oauthlib",
+  "python-dotenv",
+  "pydantic",
+  "rich",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

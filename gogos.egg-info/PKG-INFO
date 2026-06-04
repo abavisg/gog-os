@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: gogos
+Version: 0.1.0
+Summary: Local-first Claude Code-native personal operating system
+Requires-Python: >=3.11
+Requires-Dist: google-api-python-client
+Requires-Dist: google-auth-httplib2
+Requires-Dist: google-auth-oauthlib
+Requires-Dist: python-dotenv
+Requires-Dist: pydantic
+Requires-Dist: rich
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"

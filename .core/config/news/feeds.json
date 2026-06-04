@@ -1,0 +1,22 @@
+{
+  "feeds": [
+    {
+      "id": "ai",
+      "name": "AI News",
+      "description": "Important AI product, model, adoption, regulation, and engineering news.",
+      "priority": "high"
+    },
+    {
+      "id": "claude_code",
+      "name": "Claude Code News",
+      "description": "Claude Code, Anthropic developer tooling, agentic coding, skills, MCP, and related updates.",
+      "priority": "high"
+    },
+    {
+      "id": "finance",
+      "name": "Finance and Markets",
+      "description": "Markets, macro, XAU/USD, relevant UK/EU/Greek financial updates, and investment signals.",
+      "priority": "medium"
+    }
+  ]
+}

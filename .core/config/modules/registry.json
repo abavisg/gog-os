@@ -1,0 +1,16 @@
+{
+  "modules": [
+    {"id": "foundation", "name": "FoundationOS", "status": "spec"},
+    {"id": "email", "name": "EmailOS", "status": "spec"},
+    {"id": "calendar", "name": "CalendarOS", "status": "spec"},
+    {"id": "tasks", "name": "TaskOS", "status": "spec"},
+    {"id": "news", "name": "NewsOS", "status": "spec"},
+    {"id": "briefing", "name": "BriefingOS", "status": "spec"},
+    {"id": "activity", "name": "ActivityOS", "status": "spec"},
+    {"id": "reflection", "name": "ReflectionOS", "status": "spec"},
+    {"id": "learning", "name": "LearningOS", "status": "later"},
+    {"id": "health", "name": "HealthOS", "status": "later"},
+    {"id": "content", "name": "ContentOS Bridge", "status": "later"},
+    {"id": "agent", "name": "AgentOS", "status": "later"}
+  ]
+}

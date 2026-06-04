@@ -1,0 +1,28 @@
+{
+  "categories": [
+    {
+      "name": "Action",
+      "description": "Requires Giorgos to do something, reply, decide, approve, review, pay, sign, or schedule."
+    },
+    {
+      "name": "Review",
+      "description": "Worth reading or checking, but not clearly urgent."
+    },
+    {
+      "name": "Events",
+      "description": "Calendar invitations, event updates, tickets, bookings, schedules, travel, appointments."
+    },
+    {
+      "name": "Information",
+      "description": "Useful reference information with no immediate action."
+    },
+    {
+      "name": "Newsletters",
+      "description": "Subscribed content, digests, product updates, marketing newsletters."
+    },
+    {
+      "name": "Safe to Delete",
+      "description": "Low-value automated or promotional messages that appear safe to ignore. Never delete automatically."
+    }
+  ]
+}

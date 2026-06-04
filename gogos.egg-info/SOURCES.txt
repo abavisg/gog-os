@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+gogos/__init__.py
+gogos/paths.py
+gogos.egg-info/PKG-INFO
+gogos.egg-info/SOURCES.txt
+gogos.egg-info/dependency_links.txt
+gogos.egg-info/requires.txt
+gogos.egg-info/top_level.txt
+gogos/system/__init__.py
+tests/test_paths.py

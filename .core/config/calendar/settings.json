@@ -1,0 +1,9 @@
+{
+  "default_calendar_id": "primary",
+  "lookahead_days": 7,
+  "working_hours": {
+    "start": "09:00",
+    "end": "17:30",
+    "timezone": "Europe/London"
+  }
+}
