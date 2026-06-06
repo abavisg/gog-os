@@ -93,8 +93,25 @@ This validates the triage JSON schema and writes:
 
 Fail loudly and stop if validation fails or the write fails.
 
-## What is NOT done here (deferred to B5)
+### Step 5 — Render Markdown report (B5)
 
-- No Markdown report generation.
-- No HTML report generation.
-- No auto-open of any file.
+Run:
+
+```
+python -m gogos.gmail.gmail_report <account> \
+  .core/storage/gmail/<account>/triage/<date>/latest-triage.json \
+  .core/storage/gmail/<account>/inbox/<date>/latest-slim.json
+```
+
+This renders a Markdown report grouped by triage category. Each entry shows
+sender, subject, suggested action, and confidence (as a percentage). The report
+header cites both input artefact paths and a local-time generation timestamp.
+
+Output is written to:
+- `.core/storage/reports/email/<account>/<date>/email-report.md` (dated)
+- `.core/storage/reports/email/<account>/<date>/latest.md` (alias)
+
+No HTML is produced. Nothing is auto-opened. No write-back to Gmail.
+
+If the triage file is missing, the script exits non-zero with a clear error.
+Empty triage (zero items) renders a valid "nothing to triage" report and exits 0.
