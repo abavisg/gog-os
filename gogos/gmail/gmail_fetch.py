@@ -14,10 +14,12 @@ from gogos.auth.google_auth import get_credentials
 from gogos.paths import latest_alias, storage_path
 
 _METADATA_HEADERS = ["From", "To", "Subject", "Date"]
-_BODY_FIELDS = {"payload", "body", "data", "raw"}
 
-# Fields that would indicate decoded body content inside a part
-_BODY_PART_FIELDS = {"body", "data"}
+# Fields that must never appear in any stored record.
+_FORBIDDEN_TOP_LEVEL = {"raw", "data"}
+
+# Keys inside payload that are safe in a metadata-format response.
+_SAFE_PAYLOAD_KEYS = {"mimeType", "headers", "filename", "partId"}
 
 
 def _default_query() -> str:
@@ -31,23 +33,93 @@ def _max_results() -> int:
         return 100
 
 
+def _has_body_data(body: object) -> bool:
+    """Return True if a body object contains non-empty data."""
+    if not isinstance(body, dict):
+        return False
+    return bool(body.get("data"))
+
+
+def _parts_have_body_data(parts: object) -> bool:
+    """Recursively check whether any part (or nested part) carries body data."""
+    if not isinstance(parts, list):
+        return False
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        if _has_body_data(part.get("body")):
+            return True
+        if _parts_have_body_data(part.get("parts")):
+            return True
+    return False
+
+
 def _privacy_gate(record: dict) -> None:
-    """Hard-assert no body/payload data in a message record. Raises on violation."""
-    for field in _BODY_FIELDS:
+    """Hard-assert the record carries no decoded body content. Raises on violation.
+
+    Accepts a metadata-format payload envelope (payload.headers only).
+    Rejects any response that contains decoded body data anywhere in the tree.
+    """
+    # Forbidden top-level fields (raw message content / decoded data).
+    for field in _FORBIDDEN_TOP_LEVEL:
         if field in record:
             raise RuntimeError(
                 f"PRIVACY VIOLATION: message record contains forbidden field '{field}'. "
                 "Refusing to write output."
             )
-    # Also check inside parts if somehow present
-    parts = record.get("parts", [])
-    for part in (parts if isinstance(parts, list) else []):
-        for field in _BODY_PART_FIELDS:
-            if field in part and part[field]:
-                raise RuntimeError(
-                    f"PRIVACY VIOLATION: message part contains forbidden field '{field}'. "
-                    "Refusing to write output."
-                )
+
+    # Top-level body field must not contain data.
+    if _has_body_data(record.get("body")):
+        raise RuntimeError(
+            "PRIVACY VIOLATION: message record contains non-empty 'body.data'. "
+            "Refusing to write output."
+        )
+
+    # Payload: allowed only as a metadata envelope (headers + mimeType).
+    # Any payload key outside the safe set, or any body data inside, is a violation.
+    payload = record.get("payload")
+    if payload is not None:
+        if not isinstance(payload, dict):
+            raise RuntimeError(
+                "PRIVACY VIOLATION: 'payload' is not a dict. Refusing to write output."
+            )
+        unsafe_keys = set(payload.keys()) - _SAFE_PAYLOAD_KEYS
+        if unsafe_keys:
+            raise RuntimeError(
+                f"PRIVACY VIOLATION: payload contains unexpected keys {unsafe_keys}. "
+                "Refusing to write output."
+            )
+        if _has_body_data(payload.get("body")):
+            raise RuntimeError(
+                "PRIVACY VIOLATION: payload.body.data is present. "
+                "Refusing to write output."
+            )
+        if _parts_have_body_data(payload.get("parts")):
+            raise RuntimeError(
+                "PRIVACY VIOLATION: payload contains parts with body data. "
+                "Refusing to write output."
+            )
+
+
+def _project_message(record: dict) -> dict:
+    """Project a raw API response to only the safe fields needed downstream.
+
+    Extracts headers from payload.headers into a top-level 'headers' key
+    (the shape that gmail_normalise expects) and drops the payload envelope.
+    """
+    payload = record.get("payload") or {}
+    headers = payload.get("headers", []) if isinstance(payload, dict) else []
+
+    projected: dict = {
+        "id": record.get("id", ""),
+        "threadId": record.get("threadId", ""),
+        "labelIds": list(record.get("labelIds") or []),
+        "snippet": record.get("snippet", ""),
+        "headers": headers,
+    }
+    if "internalDate" in record:
+        projected["internalDate"] = record["internalDate"]
+    return projected
 
 
 def _build_service(account: str):
@@ -121,7 +193,7 @@ def fetch(account: str) -> int:
         for msg_id in msg_ids:
             record = _fetch_message(service, msg_id)
             _privacy_gate(record)
-            messages.append(record)
+            messages.append(_project_message(record))
 
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
