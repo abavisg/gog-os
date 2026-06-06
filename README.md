@@ -1,28 +1,63 @@
-# GogOS Rebuild Pack
+# GogOS
 
-This pack is designed to be unzipped into a fresh folder and reviewed by Claude Code before implementation.
+A Claude Code-native personal AI operating system. Runs entirely as slash commands in your terminal.
 
-## Recommended first instruction to Claude Code
+## What it does
 
-```text
-Read README.md, docs/PRD.md, docs/IMPLEMENTATION_PLAN.md, docs/MODEL_USAGE.md, and docs/ARCHITECTURE.md first. Do not implement anything yet. Produce a short review of the proposed architecture, identify risks, and then suggest the smallest safe first implementation step.
+Turns Gmail, Google Calendar, local logs, and news feeds into structured daily briefs — locally, with no write-back without explicit approval.
+
+**Core daily loop:**
+
+1. Morning: `/morning-brief` — email + calendar + tasks + news in one brief.
+2. Day: `/log [type] [text]` — fast activity, decision, and learning capture.
+3. Evening: `/end-day` — review, carry forward, tomorrow seed list.
+
+## Current state
+
+| Module | Status |
+|---|---|
+| FoundationOS | Done |
+| Google Auth (personal + work) | Done |
+| EmailOS (read-only triage) | Done |
+| CalendarOS | Next |
+| TaskOS | Planned |
+| BriefingOS | Planned |
+| ActivityOS | Planned |
+| ReflectionOS | Planned |
+| NewsOS | Planned |
+
+## Setup
+
+```bash
+cp .env.example .env
+# Edit .env with your Google credentials path and account names
+python -m gogos.system.setup_check
 ```
 
-## What this contains
+Then authenticate:
 
-- A detailed PRD for rebuilding GogOS from scratch.
-- Incremental module-by-module implementation specs.
-- Claude Code command and skill scaffolding.
-- Google Gmail and Calendar integration guidance.
-- Model selection guidance for each build phase and runtime workflow.
-- Security, permissions, storage, and approval-gate requirements.
-- Starter config and file structure.
+```
+/login-google personal
+/login-google work
+```
 
-## What this does not contain
+Run your first email triage:
 
-- No live Google credentials.
-- No OAuth tokens.
-- No generated secrets.
-- No production-ready code yet.
+```
+/email-report personal
+```
 
-The point is to give Claude Code a clean product and technical specification, not inherit the old implementation.
+## Principles
+
+- Local-first. Nothing leaves your machine unless you approve it.
+- Read-only first. Write-back only after explicit confirmation.
+- Scripts normalise; models interpret. Never raw API → model.
+- Every report cites its source artefacts.
+
+## Docs
+
+- `docs/PRD.md` — what this is and why.
+- `docs/ARCHITECTURE.md` — layers, storage, model selection.
+- `docs/IMPLEMENTATION_PLAN.md` — what's done, what's next.
+- `docs/GOOGLE_INTEGRATIONS.md` — OAuth setup and data schemas.
+- `docs/SECURITY.md` — gitignore, approval gates, OAuth safety.

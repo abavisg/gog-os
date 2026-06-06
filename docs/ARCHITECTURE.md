@@ -2,28 +2,28 @@
 
 ## Architecture style
 
-GogOS uses a local-first modular pipeline architecture.
+Local-first modular pipeline. Scripts handle deterministic operations; Claude skills handle reasoning.
 
-Scripts handle deterministic operations: OAuth, API fetches, normalisation, file writes, validation.
+```
+API → normalised JSON → Claude skill → Markdown report
+```
 
-Claude Code commands orchestrate workflows.
-
-Claude skills/subagents handle reasoning-heavy tasks: classification, prioritisation, summarisation, reflection, report writing.
+Never pass raw API data directly to a model.
 
 ## Layers
 
-1. Interface layer: Claude Code slash commands. Later, local web/desktop dashboard.
-2. Orchestration layer: `.claude/commands/*.md`.
-3. Reasoning layer: `.claude/skills/*/SKILL.md`.
-4. Integration layer: `.core/scripts/*/*.py`.
-5. Data layer: `.core/storage/**`.
-6. Configuration layer: `.core/config/**`.
+1. **Interface:** Claude Code slash commands.
+2. **Orchestration:** `.claude/commands/*.md`
+3. **Reasoning:** `.claude/skills/*/SKILL.md`
+4. **Scripts:** `gogos/**/*.py`
+5. **Storage:** `.core/storage/**`
+6. **Config:** `.core/config/**`
 
 ## Storage conventions
 
-Use dated directories where useful.
+Dated directories. Always write a dated file and a `latest` alias.
 
-```text
+```
 .core/storage/gmail/personal/inbox/2026-06-04/latest-slim.json
 .core/storage/gmail/personal/triage/2026-06-04/triage.json
 .core/storage/calendar/personal/2026-06-04/events.json
@@ -31,49 +31,27 @@ Use dated directories where useful.
 .core/storage/logs/2026-06-04/activity.jsonl
 ```
 
-## Data contracts
-
-Every module should produce a normalised JSON output before any model-generated summary.
-
-Bad pattern:
-
-```text
-API data -> Claude -> report
-```
-
-Better pattern:
-
-```text
-API data -> normalised JSON -> Claude -> structured summary -> report
-```
+Store timestamps as UTC internally. Render local (`Europe/London`) only at report time.
 
 ## Error handling
 
-Every script must:
-
-- Exit non-zero on failure.
-- Print clear errors to stderr.
-- Never silently skip auth failures.
-- Create parent directories if needed.
-- Avoid overwriting raw data unless writing to a `latest` alias.
-- Preserve dated artefacts.
+Every script must exit non-zero on failure, print errors to stderr, create parent directories, and never silently skip auth failures.
 
 ## Approval gates
 
-Read-only operations do not need approval after setup.
+Read-only operations need no approval after setup.
 
-State-changing operations require approval:
+State-changing operations (Gmail labels/archive/delete, Calendar write, sending email, posting content) require a two-step flow:
 
-- Gmail label application.
-- Gmail archive/delete.
-- Calendar event creation/update/deletion.
-- Sending email.
-- Posting content externally.
+1. Generate a proposed action file under `.core/storage/approvals/YYYY-MM-DD/{operation}.json`.
+2. Apply only after explicit user confirmation.
 
-Approval file pattern:
+## Model selection
 
-```text
-.core/storage/approvals/YYYY-MM-DD/{operation}.json
-```
+| Task | Model |
+|---|---|
+| Architecture review / system critique | Opus 4.8 |
+| Normal implementation and reasoning | Sonnet 4.6 |
+| Report formatting / simple summaries | Haiku 4.5 |
 
-The system should generate a proposed action file first. A separate command applies it after explicit user confirmation.
+Default to Sonnet for building and Haiku for simple runtime rendering. Use Opus only when the decision has architectural consequences.

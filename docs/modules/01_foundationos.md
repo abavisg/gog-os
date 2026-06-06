@@ -1,25 +1,16 @@
 # Module Spec: FoundationOS
 
-## Purpose
+**Status: Done.**
 
-Create the reliable base for GogOS. No integrations yet.
+## What was built
 
-## Build model
+- `gogos/paths.py` — dated storage path resolver, `storage_path(module, account, kind, date)`.
+- `gogos/system/setup_check.py` — validates Python ≥3.11, required dirs; reports optional creds without printing secrets.
+- `/setup-check` command runs the script.
+- Tests for paths and setup_check.
 
-Claude Sonnet 4.6.
+## Acceptance criteria (met)
 
-## Deliverables
-
-- Python package skeleton.
-- Config loader.
-- Path helper.
-- Setup check.
-- Logging utility.
-- Tests.
-- `/setup-check` command.
-
-## Acceptance criteria
-
-- Setup check runs without Google credentials and reports missing optional integrations.
-- Required directories are validated.
-- Private paths are gitignored.
+- `python -m gogos.system.setup_check` exits 0 on a clean checkout with no credentials.
+- Required directories are created or validated.
+- No secret material in output.
