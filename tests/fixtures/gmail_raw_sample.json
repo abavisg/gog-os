@@ -1,0 +1,46 @@
+{
+  "account": "personal",
+  "query": "in:inbox newer_than:2d",
+  "count": 3,
+  "truncated": false,
+  "messages": [
+    {
+      "id": "18f1a2b3c4d5e6f7",
+      "threadId": "18f1a2b3c4d5e6f7",
+      "labelIds": ["INBOX", "UNREAD"],
+      "snippet": "Hello, just checking in about the meeting tomorrow.",
+      "internalDate": "1749196800000",
+      "headers": [
+        {"name": "From", "value": "Alice Smith <alice@example.com>"},
+        {"name": "To", "value": "Giorgos <giorgos@example.com>"},
+        {"name": "Subject", "value": "Meeting tomorrow"},
+        {"name": "Date", "value": "Fri, 06 Jun 2026 08:00:00 +0000"}
+      ]
+    },
+    {
+      "id": "18f1a2b3c4d5e700",
+      "threadId": "18f1a2b3c4d5e700",
+      "labelIds": ["INBOX"],
+      "snippet": "Your invoice #1234 is ready to view.",
+      "internalDate": "1749200400000",
+      "headers": [
+        {"name": "From", "value": "billing@shop.example.com"},
+        {"name": "To", "value": "giorgos@example.com"},
+        {"name": "Subject", "value": "Invoice #1234"},
+        {"name": "Date", "value": "Fri, 06 Jun 2026 09:00:00 +0100"}
+      ]
+    },
+    {
+      "id": "18f1a2b3c4d5e800",
+      "threadId": "18f1a2b3c4d5e800",
+      "labelIds": ["INBOX", "UNREAD", "IMPORTANT"],
+      "snippet": "Please review the attached document before Monday.",
+      "internalDate": "1749204000000",
+      "headers": [
+        {"name": "From", "value": "boss@work.example.com"},
+        {"name": "To", "value": ""},
+        {"name": "Date", "value": "Fri, 06 Jun 2026 10:00:00 +0000"}
+      ]
+    }
+  ]
+}
