@@ -1,10 +1,20 @@
-# /email-report [account]
+# /email-report [account] [window]
 
 Implementation model: Claude Sonnet 4.6
 Runtime triage model: Claude Sonnet 4.6
 
 Purpose: fetch Gmail metadata, normalise it, classify via the email-triage skill,
 and persist the triage JSON. Read-only only.
+
+## Window argument
+
+The optional `window` argument controls which emails are fetched:
+
+- `yesterday` **(default)** — everything from yesterday 00:00 local time until now.
+- `all` — full inbox, capped at 200; warns if the inbox exceeds that.
+- `<N>` (e.g. `200`) — top N messages sorted by date.
+
+If omitted, `yesterday` is used.
 
 ## Safety block — enforced at every step
 

@@ -1,12 +1,18 @@
 """Gmail metadata fetch — read-only, privacy gate as code.
 
-Entry point: fetch(account) or run as python -m gogos.gmail.gmail_fetch <account>.
+Entry point: fetch(account[, window]) or run as
+  python -m gogos.gmail.gmail_fetch <account> [<window>]
+
+window values:
+  yesterday  (default) — inbox from yesterday 00:00 local time until now
+  all                  — full inbox, capped at 200; warns if truncated
+  <N>                  — top N messages sorted by date (N is a positive integer)
 """
 from __future__ import annotations
 
 import json
-import os
 import sys
+from datetime import datetime, time, timedelta
 
 from googleapiclient.discovery import build
 
@@ -21,16 +27,38 @@ _FORBIDDEN_TOP_LEVEL = {"raw", "data"}
 # Keys inside payload that are safe in a metadata-format response.
 _SAFE_PAYLOAD_KEYS = {"mimeType", "headers", "filename", "partId"}
 
-
-def _default_query() -> str:
-    return os.environ.get("GMAIL_DEFAULT_QUERY", "in:inbox newer_than:2d")
+_ALL_CAP = 200
 
 
-def _max_results() -> int:
+def _resolve_window(window: str) -> tuple[str, int]:
+    """Return (gmail_query, max_results) for the given window token."""
+    w = window.strip().lower()
+
+    if w == "yesterday":
+        local_now = datetime.now().astimezone()
+        yesterday_midnight = datetime.combine(
+            local_now.date() - timedelta(days=1),
+            time.min,
+            tzinfo=local_now.tzinfo,
+        )
+        after_epoch = int(yesterday_midnight.timestamp())
+        before_epoch = int(local_now.timestamp())
+        query = f"in:inbox after:{after_epoch} before:{before_epoch}"
+        return query, _ALL_CAP
+
+    if w == "all":
+        return "in:inbox", _ALL_CAP
+
     try:
-        return int(os.environ.get("GMAIL_MAX_RESULTS", "100"))
+        n = int(w)
     except ValueError:
-        return 100
+        raise ValueError(
+            f"Invalid window '{window}'. Use 'yesterday', 'all', or a positive integer."
+        )
+    if n < 1:
+        raise ValueError(f"Window count must be a positive integer, got {n}.")
+    return "in:inbox", n
+
 
 
 def _has_body_data(body: object) -> bool:
@@ -173,19 +201,33 @@ def _fetch_message(service, msg_id: str) -> dict:
     )
 
 
-def fetch(account: str) -> int:
-    """Fetch Gmail metadata for *account*. Returns exit code (0 = success)."""
-    max_results = _max_results()
-    query = _default_query()
+def fetch(account: str, window: str = "yesterday") -> int:
+    """Fetch Gmail metadata for *account*. Returns exit code (0 = success).
+
+    window: 'yesterday' (default), 'all', or a positive integer as a string.
+    """
+    try:
+        query, max_results = _resolve_window(window)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    is_all = window.strip().lower() == "all"
 
     try:
         service = _build_service(account)
         msg_ids, truncated = _list_message_ids(service, query, max_results)
 
-        if truncated:
+        if truncated and is_all:
             print(
-                f"WARNING: result set hit GMAIL_MAX_RESULTS={max_results}. "
-                "Output is truncated. Increase GMAIL_MAX_RESULTS to fetch more.",
+                f"WARNING: 'all' returned more than {_ALL_CAP} messages. "
+                f"Output is capped at {_ALL_CAP}.",
+                file=sys.stderr,
+            )
+        elif truncated:
+            print(
+                f"WARNING: result set hit limit={max_results}. "
+                "Output is truncated.",
                 file=sys.stderr,
             )
 
@@ -204,6 +246,7 @@ def fetch(account: str) -> int:
 
     output = {
         "account": account,
+        "window": window,
         "query": query,
         "messages": messages,
         "count": len(messages),
@@ -226,6 +269,10 @@ def fetch(account: str) -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m gogos.gmail.gmail_fetch <account>", file=sys.stderr)
+        print(
+            "Usage: python -m gogos.gmail.gmail_fetch <account> [yesterday|all|<N>]",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    sys.exit(fetch(sys.argv[1]))
+    _window = sys.argv[2] if len(sys.argv) > 2 else "yesterday"
+    sys.exit(fetch(sys.argv[1], _window))
