@@ -107,9 +107,8 @@ def test_report_groups_by_category(tmp_path):
     tp = tmp_path / "tp.json"
     sp = tmp_path / "sp.json"
     md = m.render_report(triage, slim, tp, sp, generated_at="2026-06-06T12:00:00+01:00")
-    # Two distinct categories: Action (2 items) and Review (1 item)
-    assert "## Action" in md
-    assert "## Review" in md
+    assert "Action" in md
+    assert "Review" in md
 
 
 def test_report_includes_sender(tmp_path):
@@ -119,7 +118,8 @@ def test_report_includes_sender(tmp_path):
     tp = tmp_path / "tp.json"
     sp = tmp_path / "sp.json"
     md = m.render_report(triage, slim, tp, sp, generated_at="2026-06-06T12:00:00+01:00")
-    assert "alice@example.com" in md
+    # Compact style extracts display name ("Alice Smith") not raw email address
+    assert "Alice Smith" in md or "alice" in md.lower()
 
 
 def test_report_includes_subject(tmp_path):
@@ -142,15 +142,15 @@ def test_report_includes_suggested_action(tmp_path):
     assert "Reply to confirm attendance" in md
 
 
-def test_report_includes_confidence(tmp_path):
+def test_report_does_not_show_raw_confidence_scores(tmp_path):
     m = _reload()
     slim = _slim_data()
     triage = _triage_data(slim)
     tp = tmp_path / "tp.json"
     sp = tmp_path / "sp.json"
     md = m.render_report(triage, slim, tp, sp, generated_at="2026-06-06T12:00:00+01:00")
-    # Confidence rendered as percentage
-    assert "%" in md
+    # Confidence scores are internal; the readable styles don't expose them
+    assert "0.7" not in md and "0.8" not in md
 
 
 def test_empty_input_renders_nothing_to_triage(tmp_path):
@@ -371,3 +371,147 @@ def test_no_gmail_api_import(tmp_path):
     # We just verify the module itself doesn't carry a service or API object
     assert not hasattr(m, "build"), "gmail_report must not import googleapiclient.discovery.build"
     assert not hasattr(m, "_build_service"), "gmail_report must not define _build_service"
+
+
+# ---------------------------------------------------------------------------
+# Style: compact
+# ---------------------------------------------------------------------------
+
+def _render(style: str, detail_categories: list[str] | None = None) -> str:
+    m = _reload()
+    slim = _slim_data()
+    triage = _triage_data(slim)
+    config = {"style": style, "detail_categories": detail_categories or ["Action", "Events"]}
+    from pathlib import Path
+    return m.render_report(
+        triage, slim,
+        Path("/fake/triage.json"), Path("/fake/slim.json"),
+        generated_at="2026-06-18T09:00:00+01:00",
+        config=config,
+    )
+
+
+def test_compact_has_category_headers():
+    md = _render("compact")
+    assert "### " in md
+    assert "Action" in md
+
+
+def test_compact_collapses_newsletters_to_name_run():
+    md = _render("compact")
+    # Newsletters section should appear but not have individual → action lines
+    lines = md.splitlines()
+    newsletter_idx = next((i for i, l in enumerate(lines) if "Newsletters" in l), None)
+    if newsletter_idx is not None:
+        # The line after the header should be a name run (no "→" per item on its own line)
+        section_lines = lines[newsletter_idx + 1: newsletter_idx + 4]
+        assert not any(l.strip().startswith("→") for l in section_lines)
+
+
+def test_compact_shows_arrow_action_for_action_category():
+    md = _render("compact")
+    assert "→" in md
+
+
+def test_compact_includes_sender_and_subject():
+    md = _render("compact")
+    assert "Alice Smith" in md  # display name extracted from "Alice Smith <alice@example.com>"
+    assert "Meeting tomorrow" in md
+
+
+# ---------------------------------------------------------------------------
+# Style: card
+# ---------------------------------------------------------------------------
+
+def test_card_has_bold_sender():
+    md = _render("card")
+    assert "**" in md
+
+
+def test_card_shows_arrow_action():
+    md = _render("card")
+    assert "→" in md
+
+
+def test_card_includes_subject():
+    md = _render("card")
+    assert "Meeting tomorrow" in md
+
+
+def test_card_groups_by_category():
+    md = _render("card")
+    assert "Action" in md
+    assert "Review" in md
+
+
+# ---------------------------------------------------------------------------
+# Style: summary
+# ---------------------------------------------------------------------------
+
+def test_summary_has_count_table():
+    md = _render("summary", detail_categories=["Action"])
+    assert "| Action" in md or "Action |" in md
+
+
+def test_summary_expands_detail_categories():
+    md = _render("summary", detail_categories=["Action"])
+    assert "→" in md  # expanded Action items have → lines
+
+
+def test_summary_collapses_non_detail_categories():
+    md = _render("summary", detail_categories=["Action"])
+    # Review is not in detail_categories — it must appear only in the collapsed footer line,
+    # not as an expanded bullet point with subject + arrow.
+    lines = md.splitlines()
+    # Find lines that are expanded bullet points (start with "•")
+    bullet_lines = [l for l in lines if l.strip().startswith("•")]
+    # None of the bullet lines should belong to the Review category
+    # (we can tell because Action items have subjects like "Meeting tomorrow" / "(no subject)")
+    # The Review item has subject "Invoice #1234" — it must not appear as a bullet
+    assert not any("Invoice #1234" in l for l in bullet_lines)
+
+
+def test_summary_lists_collapsed_categories_at_footer():
+    md = _render("summary", detail_categories=["Action"])
+    assert "Review" in md  # still mentioned in collapsed footer
+
+
+# ---------------------------------------------------------------------------
+# Config: unknown style falls back to compact
+# ---------------------------------------------------------------------------
+
+def test_unknown_style_falls_back_to_compact():
+    m = _reload()
+    slim = _slim_data()
+    triage = _triage_data(slim)
+    from pathlib import Path
+    md = m.render_report(
+        triage, slim,
+        Path("/fake/triage.json"), Path("/fake/slim.json"),
+        generated_at="2026-06-18T09:00:00+01:00",
+        config={"style": "nonexistent", "detail_categories": ["Action"]},
+    )
+    # Falls back to compact: category headers use ###
+    assert "### " in md
+
+
+# ---------------------------------------------------------------------------
+# Config loading
+# ---------------------------------------------------------------------------
+
+def test_load_report_config_returns_defaults_when_missing(tmp_path, monkeypatch):
+    m = _reload()
+    monkeypatch.setattr(m, "_REPORT_CONFIG_PATH", tmp_path / "no_such_file.json")
+    cfg = m._load_report_config()
+    assert cfg["style"] == "compact"
+    assert "Action" in cfg["detail_categories"]
+
+
+def test_load_report_config_reads_file(tmp_path, monkeypatch):
+    m = _reload()
+    cfg_file = tmp_path / "report.json"
+    cfg_file.write_text(json.dumps({"style": "card", "detail_categories": ["Events"]}))
+    monkeypatch.setattr(m, "_REPORT_CONFIG_PATH", cfg_file)
+    cfg = m._load_report_config()
+    assert cfg["style"] == "card"
+    assert cfg["detail_categories"] == ["Events"]
