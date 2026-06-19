@@ -16,7 +16,7 @@ from datetime import datetime, time, timedelta
 
 from googleapiclient.discovery import build
 
-from gogos.auth.accounts import validate_account
+from gogos.auth.accounts import resolve_account
 from gogos.auth.google_auth import get_credentials
 from gogos.paths import latest_alias, storage_path
 
@@ -208,7 +208,7 @@ def fetch(account: str, window: str = "yesterday") -> int:
     window: 'yesterday' (default), 'all', or a positive integer as a string.
     """
     try:
-        validate_account(account)
+        account = resolve_account(account)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

@@ -14,6 +14,14 @@ def _reload():
     return m
 
 
+@pytest.fixture(autouse=True)
+def _bypass_account_resolution(monkeypatch):
+    """Treat any account string as already resolved — tests that check account
+    validation override resolve_account themselves."""
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: a)
+
+
 def _clean_api_record(msg_id: str = "msg1") -> dict:
     """Minimal realistic metadata-format API response with payload.headers."""
     return {
@@ -263,19 +271,21 @@ def test_get_uses_metadata_format(tmp_path, monkeypatch):
 
 def test_fetch_unknown_account_exits_nonzero(monkeypatch):
     m = _reload()
-    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: (_ for _ in ()).throw(ValueError(f"Unknown account '{a}'")))
     result = m.fetch("bogus", "all")
     assert result == 1
 
 
 def test_fetch_known_account_passes_validation(tmp_path, monkeypatch):
     m = _reload()
-    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: "work@example.com")
     svc = MagicMock()
     svc.users().messages().list().execute.return_value = {"messages": []}
     monkeypatch.setattr(m, "_build_service", lambda account: svc)
     monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
-    result = m.fetch("work", "all")
+    result = m.fetch("work@example.com", "all")
     assert result == 0
 
 

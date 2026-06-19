@@ -7,6 +7,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _bypass_account_resolution(monkeypatch):
+    """Treat any account string as already resolved — tests that check account
+    validation override resolve_account themselves."""
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: a)
+
+
 def _make_service(events: list[dict], next_page_token: str | None = None):
     resp = {"items": events}
     if next_page_token:
@@ -148,17 +156,19 @@ def test_safe_project_no_body_fields():
 
 def test_fetch_unknown_account_exits_nonzero(monkeypatch):
     from gogos.calendar import calendar_fetch
-    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: (_ for _ in ()).throw(ValueError(f"Unknown account '{a}'")))
     result = calendar_fetch.fetch("bogus", "today")
     assert result == 1
 
 
 def test_fetch_known_account_passes_validation(tmp_path, monkeypatch):
     from gogos.calendar import calendar_fetch
-    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    import gogos.auth.accounts as accts
+    monkeypatch.setattr(accts, "resolve_account", lambda a: "work@example.com")
     monkeypatch.setattr(calendar_fetch, "_build_service", lambda account: _make_service([]))
     monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
-    result = calendar_fetch.fetch("work", "today")
+    result = calendar_fetch.fetch("work@example.com", "today")
     assert result == 0
 
 

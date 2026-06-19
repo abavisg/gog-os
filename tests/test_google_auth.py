@@ -49,29 +49,29 @@ def _fake_expired_creds(scopes=None):
 # Token path construction
 # ---------------------------------------------------------------------------
 
-def test_token_path_personal():
+def test_token_path_email():
     m = _reload()
-    path = m._token_path("personal")
+    path = m._token_path("user@example.com")
     assert path.parts[-1] == "google_token.json"
-    assert path.parts[-2] == "personal"
+    assert path.parts[-2] == "user@example.com"
     assert path.parts[-3] == "auth"
 
 
-def test_token_path_work():
+def test_token_path_second_email():
     m = _reload()
-    path = m._token_path("work")
-    assert path.parts[-2] == "work"
+    path = m._token_path("work@company.com")
+    assert path.parts[-2] == "work@company.com"
 
 
 def test_token_path_is_absolute():
     m = _reload()
-    assert m._token_path("personal").is_absolute()
+    assert m._token_path("user@example.com").is_absolute()
 
 
 def test_token_path_under_storage_root():
     m = _reload()
-    path = m._token_path("personal")
-    assert ".core/storage/auth/personal/google_token.json" in str(path).replace("\\", "/")
+    path = m._token_path("user@example.com")
+    assert ".core/storage/auth/user@example.com/google_token.json" in str(path).replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
