@@ -57,6 +57,24 @@ def check_env_file() -> None:
         _missing(".env", "copy .env.example to .env to configure")
 
 
+def check_accounts_config() -> None:
+    from gogos.auth.accounts import _config_path, load_accounts_config
+    p = _config_path()
+    if not p.exists():
+        _missing("accounts.json", "run /account-add <alias> <email> to register your first account")
+        return
+    try:
+        cfg = load_accounts_config()
+    except RuntimeError as exc:
+        _error("accounts.json", str(exc))
+        return
+    count = len(cfg.get("aliases", {}))
+    if count == 0:
+        print(f"WARNING  accounts.json  (exists but no accounts registered)")
+    else:
+        _ok("accounts.json", f"{count} account(s) registered")
+
+
 def check_google_credentials() -> None:
     creds_path_str = os.environ.get("GOOGLE_CREDENTIALS_PATH", "")
     if not creds_path_str:
@@ -82,6 +100,7 @@ def run() -> int:
         hard_fail = True
 
     check_env_file()
+    check_accounts_config()
     check_google_credentials()
 
     print()

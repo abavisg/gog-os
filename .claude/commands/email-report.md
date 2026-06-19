@@ -6,6 +6,12 @@ Runtime triage model: Claude Sonnet 4.6
 Purpose: fetch Gmail metadata, triage it, and display a readable Markdown report.
 Read-only only. The JSON is never printed to the conversation.
 
+## Account argument
+
+The optional `account` argument can be an alias (e.g. `abavisg`) or a full email
+(e.g. `abavisg@gmail.com`). It is resolved to a canonical email before use — storage
+paths and API calls always use the email. If omitted, the default account is used.
+
 ## Window argument
 
 The optional `window` argument controls which emails are fetched:

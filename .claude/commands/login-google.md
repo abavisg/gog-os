@@ -3,40 +3,55 @@
 Model: Claude Sonnet 4.6
 
 Purpose: authenticate a Google account using the local OAuth desktop flow and store a read-only token.
+The `account` argument can be an alias (e.g. `abavisg`) or a full email (e.g. `abavisg@gmail.com`).
 
 ## Steps
 
-1. Read the `account` argument from `$ARGUMENTS`. If it is empty, print:
+1. Read the `account` argument from `$ARGUMENTS`. If empty, print:
    ```
-   Usage: /login-google <account>   (e.g. personal or work)
-   ```
-   and stop.
-
-2. Load `.env` (if present) so environment variables are available, then read
-   `GOGOS_ACCOUNTS` from the environment (default: `personal,work`).
-   If `account` is **not** in that comma-separated list, print:
-   ```
-   Error: unknown account "<account>". Valid accounts: <GOGOS_ACCOUNTS>
-   No OAuth flow launched.
+   Usage: /login-google <alias-or-email>
+   Examples: /login-google abavisg   or   /login-google abavisg@gmail.com
    ```
    and stop.
 
-3. Check that `GOOGLE_CREDENTIALS_PATH` is set and the file it points to exists.
-   If either check fails, print the error from the helper and stop. Do **not**
-   print the path's file contents.
-
-4. Run the following Python command and capture its output:
+2. Resolve the argument to a canonical email:
    ```
    python -c "
-   import sys, os
-   from dotenv import load_dotenv
-   load_dotenv()
-   from gogos.auth.google_auth import get_credentials, _token_path
-   account = sys.argv[1]
+   from dotenv import load_dotenv; load_dotenv()
+   from gogos.auth.accounts import resolve_account
+   import sys
    try:
-       creds = get_credentials(account)
-       token = _token_path(account)
-       print(f'OK  Authenticated as {account!r}')
+       print(resolve_account(sys.argv[1]))
+   except ValueError as e:
+       print(f'UNRESOLVED', end='')
+   " <account>
+   ```
+   - If resolved: use the returned email for all subsequent steps.
+   - If `UNRESOLVED` and the argument contains `@` (looks like an email):
+     Ask the user: "Email `<account>` is not registered. Enter an alias for it
+     (or press Enter to proceed without registering):"
+     - If alias provided: run `/account-add <alias> <account>` first, then use `<account>` as the email.
+     - If Enter: proceed with `<account>` as the email directly (first-run bootstrap).
+   - If `UNRESOLVED` and no `@`: print:
+     ```
+     Error: '<account>' is not a known alias. Register it first with /account-add <alias> <email>.
+     ```
+     and stop.
+
+3. Check that `GOOGLE_CREDENTIALS_PATH` is set and the file it points to exists.
+   If either check fails, print the error and stop. Never print credential file contents.
+
+4. Run the OAuth flow using the resolved email:
+   ```
+   python -c "
+   import sys
+   from dotenv import load_dotenv; load_dotenv()
+   from gogos.auth.google_auth import get_credentials, _token_path
+   email = sys.argv[1]
+   try:
+       creds = get_credentials(email)
+       token = _token_path(email)
+       print(f'OK  Authenticated as {email!r}')
        print(f'OK  Token stored at {token}')
        print(f'OK  Token valid: {creds.valid}')
    except RuntimeError as e:
@@ -45,17 +60,17 @@ Purpose: authenticate a Google account using the local OAuth desktop flow and st
    except FileNotFoundError as e:
        print(f'ERROR  {e}', file=sys.stderr)
        sys.exit(1)
-   " <account>
+   " <resolved-email>
    ```
 
-5. Report the output verbatim. If the exit code is non-zero, surface the error
-   message and stop — do **not** retry or launch a second flow.
+5. Report the output verbatim. If exit code is non-zero, surface the error and stop.
 
-6. If successful, confirm with:
+6. If successful, confirm:
    ```
-   Login complete for <account>. Token written to .core/storage/auth/<account>/google_token.json
+   Login complete for <alias> (<resolved-email>).
+   Token written to .core/storage/auth/<resolved-email>/google_token.json
    ```
-   Do **not** print token contents, refresh tokens, client secrets, or .env values.
+   Never print token contents, refresh tokens, client secrets, or .env values.
 
 ## Safety
 
@@ -63,4 +78,4 @@ Purpose: authenticate a Google account using the local OAuth desktop flow and st
 - Never create or modify credentials files — only read them.
 - If the helper raises a scope-mismatch error, surface it verbatim and instruct
   the user to run `/logout-google <account>` first.
-- Do not launch OAuth for an unknown or missing account.
+- Never launch OAuth for an unresolvable argument.
