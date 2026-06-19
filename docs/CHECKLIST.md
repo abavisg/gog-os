@@ -2,8 +2,8 @@
 
 **Author:** Claude Opus 4.8
 **Date:** 2026-06-04
-**Source:** `docs/reviews/opus-initial-architecture-review.md`
-**Status:** Plan only. Nothing implemented.
+**Updated:** 2026-06-07
+**Status:** Phases A, A.5, and B complete. CalendarOS is next.
 
 ## Scope guardrails (apply to EVERY task below)
 
@@ -52,7 +52,7 @@ manual). Check the box only when Verify passes.
 
 Build only what EmailOS will consume. No config framework, no logging util, no pydantic.
 
-## [ ] A1 — Python package skeleton + path resolver
+## [x] A1 — Python package skeleton + path resolver
 
 **Files**
 - create `gogos/__init__.py`
@@ -85,7 +85,7 @@ Build only what EmailOS will consume. No config framework, no logging util, no p
 
 ---
 
-## [ ] A2 — Setup check script
+## [x] A2 — Setup check script
 
 **Files**
 - create `gogos/system/setup_check.py`
@@ -117,7 +117,7 @@ Build only what EmailOS will consume. No config framework, no logging util, no p
 
 ---
 
-## [ ] A3 — Wire `/setup-check` command to the script
+## [x] A3 — Wire `/setup-check` command to the script
 
 **Files**
 - change `.claude/commands/setup-check.md`
@@ -145,7 +145,7 @@ file was touched.
 
 Required because the `work` account is a real near-term need. Read-only scopes only.
 
-## [ ] A5.1 — Google OAuth helper (read-only, per-account tokens)
+## [x] A5.1 — Google OAuth helper (read-only, per-account tokens)
 
 **Files**
 - create `gogos/auth/__init__.py`
@@ -182,7 +182,7 @@ Required because the `work` account is a real near-term need. Read-only scopes o
 
 ---
 
-## [ ] A5.2 — `/login-google [account]` wired to helper
+## [x] A5.2 — `/login-google [account]` wired to helper
 
 **Files**
 - change `.claude/commands/login-google.md`
@@ -208,7 +208,7 @@ Required because the `work` account is a real near-term need. Read-only scopes o
 
 ---
 
-## [ ] A5.3 — `/logout-google [account]` with confirmation
+## [x] A5.3 — `/logout-google [account]` with confirmation
 
 **Files**
 - change `.claude/commands/logout-google.md`
@@ -240,7 +240,7 @@ tests, and the two command files touched.
 
 Metadata-only. No write-back of any kind. Markdown report only.
 
-## [ ] B1 — Gmail metadata fetch (privacy gate as code)
+## [x] B1 — Gmail metadata fetch (privacy gate as code)
 
 **Files**
 - create `gogos/gmail/__init__.py`
@@ -277,7 +277,7 @@ Metadata-only. No write-back of any kind. Markdown report only.
 
 ---
 
-## [ ] B2 — Email normalisation + schema test
+## [x] B2 — Email normalisation + schema test
 
 **Files**
 - create `gogos/gmail/gmail_normalise.py`
@@ -304,7 +304,7 @@ Metadata-only. No write-back of any kind. Markdown report only.
 
 ---
 
-## [ ] B3 — Harden the email-triage skill against injection
+## [x] B3 — Harden the email-triage skill against injection
 
 **Files**
 - change `.claude/skills/email-triage/SKILL.md`
@@ -326,7 +326,7 @@ Metadata-only. No write-back of any kind. Markdown report only.
 
 ---
 
-## [ ] B4 — Triage invocation → triage JSON
+## [x] B4 — Triage invocation → triage JSON
 
 **Files**
 - change `.claude/commands/email-report.md` (steps 1–4 only: fetch → normalise → triage → write triage JSON)
@@ -350,7 +350,7 @@ Metadata-only. No write-back of any kind. Markdown report only.
 
 ---
 
-## [ ] B5 — Markdown report (cite sources, Markdown only)
+## [x] B5 — Markdown report (cite sources, Markdown only)
 
 **Files**
 - create `gogos/gmail/gmail_report.py`

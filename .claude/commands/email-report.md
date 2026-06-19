@@ -3,8 +3,8 @@
 Implementation model: Claude Sonnet 4.6
 Runtime triage model: Claude Sonnet 4.6
 
-Purpose: fetch Gmail metadata, normalise it, classify via the email-triage skill,
-and persist the triage JSON. Read-only only.
+Purpose: fetch Gmail metadata, triage it, and display a readable Markdown report.
+Read-only only. The JSON is never printed to the conversation.
 
 ## Window argument
 
@@ -25,21 +25,21 @@ If omitted, `yesterday` is used.
 
 ## Steps
 
-### Step 1 — Gmail metadata fetch (B1)
+Run all steps silently (no raw JSON printed to the conversation at any point).
+If a step fails, print the error and stop.
+
+### Step 1 — Gmail metadata fetch
 
 Run:
 
 ```
-python -m gogos.gmail.gmail_fetch <account>
+python -m gogos.gmail.gmail_fetch <account> <window>
 ```
 
-This fetches metadata-only (From/To/Subject/Date headers + snippet + labels).
-It writes a dated raw JSON file and a `latest-raw.json` alias under
-`.core/storage/gmail/<account>/inbox/<YYYY-MM-DD>/`.
+Writes `latest-raw.json` under `.core/storage/gmail/<account>/inbox/<YYYY-MM-DD>/`.
+Fail loudly and stop if this step fails.
 
-Fail loudly (exit non-zero) and stop if this step fails.
-
-### Step 2 — Normalise (B2)
+### Step 2 — Normalise
 
 Run:
 
@@ -47,13 +47,10 @@ Run:
 python -m gogos.gmail.gmail_normalise <account> .core/storage/gmail/<account>/inbox/<date>/latest-raw.json
 ```
 
-This converts the raw metadata to the canonical slim schema
-(id, thread_id, account, from, to, subject, date UTC, snippet, labels, source)
-and writes `latest-slim.json` in the same dated inbox directory.
-
+Writes `latest-slim.json` in the same dated directory.
 Fail loudly and stop if this step fails.
 
-### Step 3 — Triage via email-triage skill (B3/B4)
+### Step 3 — Triage via email-triage skill
 
 Invoke the `email-triage` skill, passing:
 
@@ -61,7 +58,10 @@ Invoke the `email-triage` skill, passing:
 - The categories from `.core/config/gmail/categories.json`.
 - The rubric from `.core/config/gmail/rubric.md`.
 
-The skill returns strict JSON only — no prose — in this shape:
+**Do not print the triage JSON to the conversation.**
+Hold it in memory for Step 4.
+
+The skill returns strict JSON in this shape:
 
 ```json
 {
@@ -79,31 +79,21 @@ The skill returns strict JSON only — no prose — in this shape:
 }
 ```
 
-Every `id` in the output must match a real message `id` from `latest-slim.json`.
+Every `id` must match a real message `id` from `latest-slim.json`.
 Every `category` must be one of the names defined in `categories.json`.
-Do not invent message ids or categories.
 
-### Step 4 — Write triage JSON (B4)
+### Step 4 — Write triage JSON
 
-Run:
-
-```
-python -m gogos.gmail.gmail_triage <account> <path-to-triage-json>
-```
-
-Or pipe the skill output directly:
+Write the triage JSON to a temp file, then run:
 
 ```
-<triage JSON> | python -m gogos.gmail.gmail_triage <account>
+python -m gogos.gmail.gmail_triage <account> /tmp/triage_output.json
 ```
 
-This validates the triage JSON schema and writes:
-- A dated `triage.json` under `.core/storage/gmail/<account>/triage/<YYYY-MM-DD>/`.
-- A `latest-triage.json` alias in the same directory.
+Writes `latest-triage.json` under `.core/storage/gmail/<account>/triage/<YYYY-MM-DD>/`.
+Fail loudly and stop if validation fails.
 
-Fail loudly and stop if validation fails or the write fails.
-
-### Step 5 — Render Markdown report (B5)
+### Step 5 — Render and display Markdown report
 
 Run:
 
@@ -113,15 +103,11 @@ python -m gogos.gmail.gmail_report <account> \
   .core/storage/gmail/<account>/inbox/<date>/latest-slim.json
 ```
 
-This renders a Markdown report grouped by triage category. Each entry shows
-sender, subject, suggested action, and confidence (as a percentage). The report
-header cites both input artefact paths and a local-time generation timestamp.
+Then read the output file and **print its contents to the conversation** as the final output.
 
-Output is written to:
-- `.core/storage/reports/email/<account>/<date>/email-report.md` (dated)
-- `.core/storage/reports/email/<account>/<date>/latest.md` (alias)
+```
+cat .core/storage/reports/email/<account>/<date>/latest.md
+```
 
-No HTML is produced. Nothing is auto-opened. No write-back to Gmail.
-
-If the triage file is missing, the script exits non-zero with a clear error.
-Empty triage (zero items) renders a valid "nothing to triage" report and exits 0.
+The script also writes `latest.html` to the same directory and opens it in Google Chrome automatically.
+No write-back to Gmail.

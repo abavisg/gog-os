@@ -1,6 +1,6 @@
-"""Gmail triage Markdown report renderer.
+"""Gmail triage Markdown + HTML report renderer.
 
-Reads latest-triage.json + latest-slim.json and renders a grouped Markdown report.
+Reads latest-triage.json + latest-slim.json and renders a grouped report.
 Report style is controlled by .core/config/gmail/report.json:
   style: "compact" | "card" | "summary"
   detail_categories: list of category names expanded in "summary" style
@@ -8,7 +8,7 @@ Report style is controlled by .core/config/gmail/report.json:
 Entry point:
   python -m gogos.gmail.gmail_report <account> <triage_json_path> <slim_json_path>
 
-Safety: no Gmail API calls, no write-back, no HTML, no auto-open.
+Safety: no Gmail API calls, no write-back, no auto-open.
 """
 from __future__ import annotations
 
@@ -263,6 +263,124 @@ def render_report(
 
 
 # ---------------------------------------------------------------------------
+# HTML renderer
+# ---------------------------------------------------------------------------
+
+_CAT_COLORS: dict[str, str] = {
+    "Action":          "#d93025",
+    "Review":          "#1a73e8",
+    "Events":          "#188038",
+    "Information":     "#e37400",
+    "Newsletters":     "#7627bb",
+    "Safe to Delete":  "#80868b",
+}
+_DEFAULT_COLOR = "#5f6368"
+
+
+def render_html_report(
+    triage_data: dict,
+    slim_data: dict,
+    triage_path: Path,
+    slim_path: Path,
+    generated_at: str | None = None,
+    config: dict | None = None,
+) -> str:
+    if generated_at is None:
+        generated_at = _now_local()
+    if config is None:
+        config = _load_report_config()
+
+    account = triage_data.get("account", "unknown")
+    items = triage_data.get("items", [])
+    index = _slim_index(slim_data)
+    date_part = generated_at[:10]
+
+    def esc(s: str) -> str:
+        return (
+            s.replace("&", "&amp;")
+             .replace("<", "&lt;")
+             .replace(">", "&gt;")
+             .replace('"', "&quot;")
+        )
+
+    groups: dict[str, list[dict]] = {}
+    for item in items:
+        cat = item.get("category", "Uncategorised")
+        groups.setdefault(cat, []).append(item)
+
+    sections: list[str] = []
+    for category, cat_items in groups.items():
+        emoji, _ = _CAT_META.get(category, (_DEFAULT_EMOJI, category))
+        color = _CAT_COLORS.get(category, _DEFAULT_COLOR)
+        rows: list[str] = []
+        for item in cat_items:
+            msg = index.get(item.get("id", ""), {})
+            sender = esc(_sender_short(msg.get("from", "") or ""))
+            subject = esc(msg.get("subject") or "(no subject)")
+            date = esc(_date_short(msg.get("date", "")))
+            action = esc(item.get("suggested_action", ""))
+            action_row = f'<td class="action">→ {action}</td>' if action else '<td class="action"></td>'
+            rows.append(
+                f'<tr><td class="sender">{sender}</td>'
+                f'<td class="date">{date}</td>'
+                f'<td class="subject">{subject}</td>'
+                f'{action_row}</tr>'
+            )
+        rows_html = "\n".join(rows)
+        sections.append(f"""
+<section class="category">
+  <h2 style="color:{color}">{emoji} {esc(category)} <span class="count">({len(cat_items)})</span></h2>
+  <table>
+    <thead><tr>
+      <th>From</th><th>Date</th><th>Subject</th><th>Action</th>
+    </tr></thead>
+    <tbody>
+{rows_html}
+    </tbody>
+  </table>
+</section>""")
+
+    sections_html = "\n".join(sections) if sections else "<p><em>No messages to triage.</em></p>"
+    msg_count = len(items)
+    cat_count = len(groups)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Email Triage — {esc(account)} · {esc(date_part)}</title>
+<style>
+  body {{font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         margin: 0; padding: 24px 32px; background: #f8f9fa; color: #202124;}}
+  h1   {{font-size: 1.4rem; margin-bottom: 4px; color: #202124;}}
+  .meta {{font-size: 0.8rem; color: #5f6368; margin-bottom: 24px;}}
+  section.category {{background:#fff; border-radius:8px; padding:16px 20px;
+                     margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.12);}}
+  h2   {{font-size: 1rem; margin: 0 0 12px; display:flex; align-items:center; gap:6px;}}
+  .count {{font-weight:400; color:#5f6368;}}
+  table {{border-collapse:collapse; width:100%; font-size:0.85rem;}}
+  th   {{text-align:left; padding:4px 8px; border-bottom:1px solid #e8eaed;
+         color:#5f6368; font-weight:500;}}
+  td   {{padding:6px 8px; border-bottom:1px solid #f1f3f4; vertical-align:top;}}
+  tr:last-child td {{border-bottom:none;}}
+  .sender {{white-space:nowrap; font-weight:500; width:16%;}}
+  .date   {{white-space:nowrap; color:#5f6368; width:10%;}}
+  .subject {{width:42%;}}
+  .action  {{color:#1a73e8; width:32%; font-style:italic;}}
+  footer   {{font-size:0.75rem; color:#9aa0a6; margin-top:24px;}}
+</style>
+</head>
+<body>
+<h1>Email Triage — {esc(account)} · {esc(date_part)}</h1>
+<div class="meta">{msg_count} messages &nbsp;·&nbsp; {cat_count} categories &nbsp;·&nbsp; generated {esc(generated_at)}</div>
+{sections_html}
+<footer>Sources: {esc(str(triage_path))} · {esc(str(slim_path))}</footer>
+</body>
+</html>"""
+
+
+# ---------------------------------------------------------------------------
 # I/O entry point
 # ---------------------------------------------------------------------------
 
@@ -289,17 +407,25 @@ def report(account: str, triage_path: Path, slim_path: Path) -> int:
     config = _load_report_config()
     generated_at = _now_local()
     md = render_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
+    html = render_html_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
 
     dated_dir = storage_path("reports", "email", account)
-    dated_file = dated_dir / "email-report.md"
-    dated_file.write_text(md)
 
-    alias = latest_alias(dated_dir, "latest.md")
-    alias.write_text(md)
+    (dated_dir / "email-report.md").write_text(md)
+    latest_alias(dated_dir, "latest.md").write_text(md)
+
+    html_file = dated_dir / "email-report.html"
+    html_file.write_text(html)
+    html_alias = latest_alias(dated_dir, "latest.html")
+    html_alias.write_text(html)
 
     item_count = len(triage_data.get("items", []))
     style = config.get("style", "compact")
-    print(f"OK  Wrote {item_count}-item {style} report to {alias}")
+    print(f"OK  Wrote {item_count}-item {style} report → {html_alias}")
+
+    import subprocess
+    subprocess.Popen(["open", "-a", "Google Chrome", str(html_alias)])
+
     return 0
 
 
