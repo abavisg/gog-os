@@ -143,6 +143,26 @@ def test_safe_project_no_body_fields():
 
 
 # ---------------------------------------------------------------------------
+# fetch() — account validation
+# ---------------------------------------------------------------------------
+
+def test_fetch_unknown_account_exits_nonzero(monkeypatch):
+    from gogos.calendar import calendar_fetch
+    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    result = calendar_fetch.fetch("bogus", "today")
+    assert result == 1
+
+
+def test_fetch_known_account_passes_validation(tmp_path, monkeypatch):
+    from gogos.calendar import calendar_fetch
+    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    monkeypatch.setattr(calendar_fetch, "_build_service", lambda account: _make_service([]))
+    monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
+    result = calendar_fetch.fetch("work", "today")
+    assert result == 0
+
+
+# ---------------------------------------------------------------------------
 # fetch() — integration with mocked service
 # ---------------------------------------------------------------------------
 

@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 
+from gogos.auth.accounts import validate_account
 from gogos.auth.google_auth import get_credentials
 from gogos.paths import latest_alias, storage_path
 
@@ -126,6 +127,12 @@ def _safe_project(event: dict) -> dict:
 
 def fetch(account: str, period: str = "today") -> int:
     """Fetch Calendar events for *account* and *period*. Returns exit code."""
+    try:
+        validate_account(account)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
     try:
         time_min, time_max, label = _resolve_period(period)
     except ValueError as exc:

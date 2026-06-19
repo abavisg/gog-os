@@ -258,6 +258,28 @@ def test_get_uses_metadata_format(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# fetch() — account validation
+# ---------------------------------------------------------------------------
+
+def test_fetch_unknown_account_exits_nonzero(monkeypatch):
+    m = _reload()
+    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    result = m.fetch("bogus", "all")
+    assert result == 1
+
+
+def test_fetch_known_account_passes_validation(tmp_path, monkeypatch):
+    m = _reload()
+    monkeypatch.setenv("GOGOS_ACCOUNTS", "personal,work")
+    svc = MagicMock()
+    svc.users().messages().list().execute.return_value = {"messages": []}
+    monkeypatch.setattr(m, "_build_service", lambda account: svc)
+    monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
+    result = m.fetch("work", "all")
+    assert result == 0
+
+
+# ---------------------------------------------------------------------------
 # fetch() — privacy gate integration: body in API response → exit 1
 # ---------------------------------------------------------------------------
 
