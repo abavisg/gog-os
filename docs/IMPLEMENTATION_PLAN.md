@@ -24,23 +24,22 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
 - `gogos/gmail/gmail_fetch.py` — metadata-only fetch, hard-asserts no body in output.
 - `gogos/gmail/gmail_normalise.py` — raw → canonical slim JSON, UTC dates.
 - `gogos/gmail/gmail_triage.py` — validates and writes triage JSON.
-- `gogos/gmail/gmail_report.py` — Markdown report citing source artefacts.
+- `gogos/gmail/gmail_report.py` — Markdown + HTML report, auto-opens in Chrome.
 - `email-triage` skill hardened against prompt injection.
 - `/email-report [account]` end-to-end working.
 - Tests passing.
 
+### Phase 4 — CalendarOS (read-only)
+- `gogos/calendar/calendar_fetch.py` — events for today/tomorrow/week, safe projection (no descriptions).
+- `gogos/calendar/calendar_normalise.py` — raw → slim JSON, UTC dates, duration, all-day flag.
+- `gogos/calendar/calendar_report.py` — Markdown + HTML brief, auto-opens in Chrome.
+- `calendar-brief` skill — focus gaps, risks, per-event prep notes, injection-hardened.
+- `/calendar-brief [account] [today|tomorrow|week]` end-to-end working.
+- Tests passing (199/199).
+
 ---
 
 ## NEXT
-
-### Phase 4 — CalendarOS MVP
-
-Build Calendar fetch, normalise, brief skill invocation, and `/calendar-brief [account] [today|tomorrow|week]`.
-
-Acceptance criteria:
-- Fetches events for requested period.
-- Handles all-day events and conflicts.
-- Produces Markdown brief with prep needs and focus gaps.
 
 ### Phase 5 — TaskOS Local MVP
 
