@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RAW_SAMPLE = FIXTURES / "gmail_raw_sample.json"
@@ -242,7 +243,8 @@ def test_io_writes_dated_file_and_alias(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 
-    rc = m.report("personal", triage_path, slim_path)
+    with patch("subprocess.Popen"):
+        rc = m.report("personal", triage_path, slim_path)
 
     assert rc == 0
     assert (dated_dir / "email-report.md").exists()
@@ -253,7 +255,13 @@ def test_io_alias_and_dated_file_identical(tmp_path, monkeypatch):
     m = _reload()
     dated_dir = tmp_path / "dated"
     dated_dir.mkdir()
-    alias_path = tmp_path / "latest.md"
+
+    aliases: dict[str, Path] = {}
+
+    def tracking_alias(d: Path, f: str) -> Path:
+        p = tmp_path / f
+        aliases[f] = p
+        return p
 
     triage_path = tmp_path / "latest-triage.json"
     slim_path = tmp_path / "latest-slim.json"
@@ -261,11 +269,12 @@ def test_io_alias_and_dated_file_identical(tmp_path, monkeypatch):
     _write_json(slim_path, _slim_data())
 
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
-    monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
+    monkeypatch.setattr(m, "latest_alias", tracking_alias)
 
-    m.report("personal", triage_path, slim_path)
+    with patch("subprocess.Popen"):
+        m.report("personal", triage_path, slim_path)
 
-    assert (dated_dir / "email-report.md").read_text() == alias_path.read_text()
+    assert (dated_dir / "email-report.md").read_text() == aliases["latest.md"].read_text()
 
 
 def test_io_uses_reports_storage_path(tmp_path, monkeypatch):
@@ -287,7 +296,8 @@ def test_io_uses_reports_storage_path(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "storage_path", capturing_storage_path)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: tmp_path / f)
 
-    m.report("personal", triage_path, slim_path)
+    with patch("subprocess.Popen"):
+        m.report("personal", triage_path, slim_path)
 
     assert len(calls) == 1
     assert calls[0] == ("reports", "email", "personal")
@@ -324,11 +334,10 @@ def test_missing_triage_file_prints_clear_error(tmp_path, capsys):
     assert "triage" in err.lower() or "ERROR" in err
 
 
-def test_no_html_file_produced(tmp_path, monkeypatch):
+def test_html_file_produced(tmp_path, monkeypatch):
     m = _reload()
     dated_dir = tmp_path / "dated"
     dated_dir.mkdir()
-    alias_path = tmp_path / "latest.md"
 
     triage_path = tmp_path / "latest-triage.json"
     slim_path = tmp_path / "latest-slim.json"
@@ -336,12 +345,14 @@ def test_no_html_file_produced(tmp_path, monkeypatch):
     _write_json(slim_path, _slim_data())
 
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
-    monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
+    monkeypatch.setattr(m, "latest_alias", lambda d, f: dated_dir / f)
 
-    m.report("personal", triage_path, slim_path)
+    with patch("subprocess.Popen"):
+        m.report("personal", triage_path, slim_path)
 
-    html_files = list(dated_dir.glob("*.html")) + list(tmp_path.glob("*.html"))
-    assert not html_files, f"Unexpected HTML files: {html_files}"
+    html_files = list(dated_dir.glob("*.html"))
+    assert html_files, "Expected HTML file to be produced"
+    assert "<!DOCTYPE html>" in html_files[0].read_text()
 
 
 def test_empty_triage_io_exits_zero(tmp_path, monkeypatch):
@@ -358,7 +369,8 @@ def test_empty_triage_io_exits_zero(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 
-    rc = m.report("personal", triage_path, slim_path)
+    with patch("subprocess.Popen"):
+        rc = m.report("personal", triage_path, slim_path)
     assert rc == 0
     assert alias_path.exists()
 
