@@ -1,7 +1,7 @@
 # /email-report [account] [window]
 
-Implementation model: Claude Sonnet 4.6
-Runtime triage model: Claude Sonnet 4.6
+Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
+Runtime triage model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: fetch Gmail metadata, triage it, and display a readable Markdown report.
 Read-only only. The JSON is never printed to the conversation.
@@ -24,7 +24,8 @@ If omitted, `yesterday` is used.
 
 ## Safety block — enforced at every step
 
-- Read-only Gmail scopes only (`gmail.readonly`).
+- Read-only behaviour: this command never mutates Gmail, even though the
+  account now holds the `gmail.modify` scope (used only by `/email-apply`).
 - No labels, no archive, no delete, no send.
 - No full-body fetch.
 - No write-back to Gmail of any kind.

@@ -1,7 +1,6 @@
 ---
 name: news-curator
 description: Curates relevant news into source-linked, action-oriented briefs.
-model: claude-sonnet-4-6
 ---
 
 # News Curator Skill

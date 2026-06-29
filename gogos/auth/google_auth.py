@@ -8,7 +8,10 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES: list[str] = [
-    "https://www.googleapis.com/auth/gmail.readonly",
+    # gmail.modify allows reading, applying/removing labels, and archiving
+    # (removing INBOX). It does NOT permit permanent deletion — that requires
+    # gmail.modify's delete endpoint which GogOS never calls. See gmail_apply.
+    "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/calendar.readonly",
 ]
 

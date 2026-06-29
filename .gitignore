@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .core/config/secrets/
+.core/config/accounts.json
 .core/storage/
+.obsidian/
 credentials.json
 *token*.json

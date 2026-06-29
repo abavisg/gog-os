@@ -1,7 +1,6 @@
 ---
 name: email-triage
 description: Classifies Gmail metadata/snippets into action-oriented categories for GogOS EmailOS.
-model: claude-sonnet-4-6
 ---
 
 # Email Triage Skill

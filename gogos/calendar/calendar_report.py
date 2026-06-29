@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, storage_path
 
 _LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
@@ -275,7 +276,7 @@ def report(account: str, brief_path: Path, slim_path: Path) -> int:
     md = render_report(brief_data, slim_data, brief_path, slim_path, generated_at)
     html = render_html_report(brief_data, slim_data, brief_path, slim_path, generated_at)
 
-    dated_dir = storage_path("reports", "calendar", account)
+    dated_dir = storage_path("reports", "calendar", resolve_account(account))
     (dated_dir / "calendar-brief.md").write_text(md)
     latest_alias(dated_dir, "latest.md").write_text(md)
 

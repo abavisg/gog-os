@@ -1,7 +1,6 @@
 ---
 name: reflection-coach
 description: Produces end-of-day and weekly reviews from logs and generated artefacts.
-model: claude-sonnet-4-6
 ---
 
 # Reflection Coach Skill

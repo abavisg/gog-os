@@ -10,7 +10,10 @@ GogOS handles private email, calendar, health, learning, and personal logs. Trea
 - No secrets in git.
 - No tokens in prompts unless explicitly required and redacted.
 - No destructive or external write action without explicit approval.
-- Read-only OAuth scopes for MVP.
+- OAuth scopes: read-only for fetch; Gmail uses `gmail.modify` to enable
+  EmailOS write-back (label + archive). **`gmail.modify` does not permit
+  permanent deletion, and GogOS never calls a delete/trash endpoint** — the only
+  mutations are adding `GSD/*` labels and removing `INBOX`.
 - Store raw private data under `.core/storage`, which should be gitignored.
 - Prefer generated summaries over exposing full raw email/calendar data to Claude.
 

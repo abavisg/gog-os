@@ -215,6 +215,7 @@ def test_render_html_empty_events():
 def test_report_io_writes_files(tmp_path, monkeypatch):
     from gogos.calendar import calendar_report
     monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
+    monkeypatch.setattr(calendar_report, "resolve_account", lambda a: a)
 
     brief_path = tmp_path / "brief.json"
     slim_path = tmp_path / "slim.json"

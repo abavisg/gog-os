@@ -1,6 +1,6 @@
 # /calendar-brief [account] [today|tomorrow|week]
 
-Implementation model: Claude Sonnet 4.6
+Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: fetch Google Calendar events, analyse them via the calendar-brief skill,
 and display a readable brief. Read-only only. No write-back to Google Calendar.

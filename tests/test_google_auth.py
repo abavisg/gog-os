@@ -25,7 +25,7 @@ def _fake_valid_creds(scopes=None):
     creds.expired = False
     creds.refresh_token = "rt"
     creds.scopes = set(scopes or [
-        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar.readonly",
     ])
     creds.to_json.return_value = json.dumps({"token": "REDACTED"})
@@ -38,7 +38,7 @@ def _fake_expired_creds(scopes=None):
     creds.expired = True
     creds.refresh_token = "rt"
     creds.scopes = set(scopes or [
-        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar.readonly",
     ])
     creds.to_json.return_value = json.dumps({"token": "REDACTED"})

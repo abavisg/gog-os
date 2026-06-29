@@ -19,8 +19,8 @@ Turns Gmail, Google Calendar, local logs, and news feeds into structured daily b
 | FoundationOS | Done |
 | Google Auth (personal + work) | Done |
 | EmailOS (read-only triage) | Done |
-| CalendarOS | Next |
-| TaskOS | Planned |
+| CalendarOS (read-only brief) | Done |
+| TaskOS | Next |
 | BriefingOS | Planned |
 | ActivityOS | Planned |
 | ReflectionOS | Planned |
@@ -37,14 +37,15 @@ python -m gogos.system.setup_check
 Then authenticate:
 
 ```
-/login-google personal
-/login-google work
+/login-google abavisg     # personal Gmail (default)
+/login-google karehero    # work
 ```
 
-Run your first email triage:
+Run your first email triage, then move emails into your GSD folders:
 
 ```
-/email-report personal
+/email-report abavisg
+/email-apply abavisg
 ```
 
 ## Principles

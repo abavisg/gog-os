@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 
+from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, storage_path
 
 _REQUIRED_KEYS = {"generated_at", "account", "items"}
@@ -43,6 +44,9 @@ def write_triage(account: str, triage_data: dict) -> int:
         print(f"ERROR: invalid triage JSON: {exc}", file=sys.stderr)
         return 1
 
+    # Resolve the alias to its canonical email so every gmail module keys storage
+    # off the same directory; fetch/normalise/triage/apply must all agree.
+    account = resolve_account(account)
     dated_dir = storage_path("gmail", account, "triage")
     dated_file = dated_dir / "triage.json"
     dated_file.write_text(json.dumps(triage_data, indent=2))
