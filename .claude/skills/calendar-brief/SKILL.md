@@ -1,7 +1,6 @@
 ---
 name: calendar-brief
 description: Turns normalised calendar events into a structured JSON brief with prep needs, focus gaps, and risks.
-model: claude-sonnet-4-6
 ---
 
 # calendar-brief skill

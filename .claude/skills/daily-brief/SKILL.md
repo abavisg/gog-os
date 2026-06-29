@@ -1,7 +1,6 @@
 ---
 name: daily-brief
 description: Combines module outputs into a concise daily operating brief.
-model: claude-sonnet-4-6
 ---
 
 # Daily Brief Skill
