@@ -29,6 +29,18 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
 - `/email-report [account]` end-to-end working.
 - Tests passing.
 
+### Phase B.5 — EmailOS write-back (move to GSD folders)
+- OAuth scope bumped `gmail.readonly` → `gmail.modify` (label + archive, never delete).
+- `gogos/gmail/gmail_apply.py` — builds a move plan from latest triage, applies on approval.
+  Move = add `GSD/<Category>` label + remove `INBOX` (archive). Never trashes/deletes/spams;
+  enforced by a single gated `_modify` and `_assert_safe`.
+- Two-step approval: proposal written to `.core/storage/approvals/<account>/<date>/gmail-labels.json`
+  with `approved: false`; applied only after explicit user confirmation.
+- Missing `GSD/*` label → abort with a clear message (no auto-create, no partial apply).
+- Stale-email warning surfaces inbox mail predating yesterday 00:00.
+- `/email-apply [account]` command wired end-to-end.
+- Tests passing (260/260), including the never-delete invariant.
+
 ### Phase 4 — CalendarOS (read-only)
 - `gogos/calendar/calendar_fetch.py` — events for today/tomorrow/week, safe projection (no descriptions).
 - `gogos/calendar/calendar_normalise.py` — raw → slim JSON, UTC dates, duration, all-day flag.
