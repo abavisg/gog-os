@@ -11,6 +11,7 @@ window values:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, time, timedelta
 
@@ -28,7 +29,23 @@ _FORBIDDEN_TOP_LEVEL = {"raw", "data"}
 # Keys inside payload that are safe in a metadata-format response.
 _SAFE_PAYLOAD_KEYS = {"mimeType", "headers", "filename", "partId"}
 
-_ALL_CAP = 200
+# Safety cap on how many messages an 'all' fetch returns. Default 200 to avoid
+# surprise large fetches; raise via GOGOS_ALL_CAP to clear a backlog in one pass
+# (e.g. GOGOS_ALL_CAP=2000). Listing paginates and each message is one metadata
+# 'get' call, so a higher cap just takes proportionally longer.
+def _all_cap() -> int:
+    raw = os.environ.get("GOGOS_ALL_CAP", "")
+    if raw:
+        try:
+            n = int(raw)
+            if n >= 1:
+                return n
+        except ValueError:
+            pass
+    return 200
+
+
+_ALL_CAP = _all_cap()
 
 
 def _resolve_window(window: str) -> tuple[str, int]:

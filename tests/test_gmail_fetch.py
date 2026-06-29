@@ -586,6 +586,21 @@ def test_resolve_window_all_returns_inbox_query():
     assert max_results == 200
 
 
+def test_all_cap_env_override(monkeypatch):
+    """GOGOS_ALL_CAP raises the 'all' fetch cap; default stays 200."""
+    monkeypatch.setenv("GOGOS_ALL_CAP", "2000")
+    m = _reload()
+    _, max_results = m._resolve_window("all")
+    assert max_results == 2000
+
+
+def test_all_cap_env_invalid_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("GOGOS_ALL_CAP", "not-a-number")
+    m = _reload()
+    _, max_results = m._resolve_window("all")
+    assert max_results == 200
+
+
 def test_resolve_window_numeric_sets_max_results():
     m = _reload()
     query, max_results = m._resolve_window("50")
