@@ -11,6 +11,7 @@ from datetime import timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
+from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, storage_path
 
 
@@ -74,6 +75,10 @@ def normalise(account: str, raw_path: Path) -> int:
 
     result = normalise_raw(raw_data)
 
+    # Resolve the alias to its canonical email so every gmail module keys storage
+    # off the same directory (see resolve_account); fetch/normalise/triage/apply
+    # must all agree regardless of whether an alias or email was passed.
+    account = resolve_account(account)
     dated_dir = storage_path("gmail", account, "inbox")
     slim_file = dated_dir / "slim.json"
     slim_file.write_text(json.dumps(result, indent=2))

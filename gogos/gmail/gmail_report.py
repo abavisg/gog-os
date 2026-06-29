@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, storage_path
 
 _LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
@@ -409,7 +410,7 @@ def report(account: str, triage_path: Path, slim_path: Path) -> int:
     md = render_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
     html = render_html_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
 
-    dated_dir = storage_path("reports", "email", account)
+    dated_dir = storage_path("reports", "email", resolve_account(account))
 
     (dated_dir / "email-report.md").write_text(md)
     latest_alias(dated_dir, "latest.md").write_text(md)

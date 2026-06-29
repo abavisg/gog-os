@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "default": "you@example.com",
+  "aliases": {
+    "personal": "you@example.com",
+    "work": "you@company.com"
+  }
+}

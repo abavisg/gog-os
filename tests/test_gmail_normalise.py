@@ -220,6 +220,7 @@ def test_io_wrapper_writes_slim_and_alias(tmp_path, monkeypatch):
     dated_dir.mkdir()
     alias_path = tmp_path / "latest-slim.json"
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 
@@ -236,6 +237,7 @@ def test_io_wrapper_output_is_valid_json(tmp_path, monkeypatch):
     dated_dir.mkdir()
     alias_path = tmp_path / "latest-slim.json"
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 

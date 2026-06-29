@@ -156,6 +156,7 @@ def test_normalise_raw_empty():
 def test_normalise_io(tmp_path, monkeypatch):
     from gogos.calendar import calendar_normalise
     monkeypatch.setattr("gogos.paths.STORAGE_ROOT", tmp_path / ".core/storage")
+    monkeypatch.setattr(calendar_normalise, "resolve_account", lambda a: a)
 
     raw_path = tmp_path / "raw.json"
     raw_path.write_text(json.dumps(_raw_fetch_output([_raw_event("e1")])))

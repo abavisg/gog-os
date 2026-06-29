@@ -240,6 +240,7 @@ def test_io_writes_dated_file_and_alias(tmp_path, monkeypatch):
     _write_json(triage_path, _triage_data(_slim_data()))
     _write_json(slim_path, _slim_data())
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 
@@ -268,6 +269,7 @@ def test_io_alias_and_dated_file_identical(tmp_path, monkeypatch):
     _write_json(triage_path, _triage_data(_slim_data()))
     _write_json(slim_path, _slim_data())
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", tracking_alias)
 
@@ -293,6 +295,7 @@ def test_io_uses_reports_storage_path(tmp_path, monkeypatch):
     _write_json(triage_path, _triage_data(_slim_data()))
     _write_json(slim_path, _slim_data())
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", capturing_storage_path)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: tmp_path / f)
 
@@ -344,6 +347,7 @@ def test_html_file_produced(tmp_path, monkeypatch):
     _write_json(triage_path, _triage_data(_slim_data()))
     _write_json(slim_path, _slim_data())
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: dated_dir / f)
 
@@ -366,6 +370,7 @@ def test_empty_triage_io_exits_zero(tmp_path, monkeypatch):
     _write_json(triage_path, _empty_triage())
     _write_json(slim_path, {"account": "personal", "count": 0, "messages": [], "source": "gmail"})
 
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "storage_path", lambda *a, **kw: dated_dir)
     monkeypatch.setattr(m, "latest_alias", lambda d, f: alias_path)
 

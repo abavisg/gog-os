@@ -10,6 +10,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, storage_path
 
 
@@ -99,6 +100,9 @@ def normalise(account: str, raw_path: Path) -> int:
 
     result = normalise_raw(raw_data)
 
+    # Resolve the alias to its canonical email so calendar fetch/normalise agree
+    # on the storage directory regardless of the alias passed on the CLI.
+    account = resolve_account(account)
     dated_dir = storage_path("calendar", account, "events")
     (dated_dir / "slim.json").write_text(json.dumps(result, indent=2))
 
