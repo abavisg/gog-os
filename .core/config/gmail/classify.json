@@ -1,0 +1,53 @@
+{
+  "_comment": "Sender lists and patterns for gogos.gmail.gmail_classify. Domains are matched as substrings of the sender's domain. Edit freely to tune classification; the never-delete-the-important invariant is enforced by rule ORDER in code, not here.",
+
+  "bank_domains": [
+    "natwest.com", "lloydsbank.com", "nbg.gr", "piraeusbank.gr", "piraeus.gr",
+    "interamerican.gr", "nnhellas.gr", "wealthify.com", "americanexpress.com",
+    "myurbanjungle.com", "octopus.energy", "vodafone.co.uk", "ee.co.uk",
+    "notify.tide.co", "barclays", "hsbc", "monzo.com", "starlingbank.com",
+    "revolut.com", "alpha.gr", "crm.alpha.gr"
+  ],
+
+  "newsletter_domains": [
+    "substack.com", "tldrnewsletter.com", "beehiiv.com", "list.maven.com",
+    "courses.maven.com", "ideabrowser.com", "leaddev.com", "biglifejournal.com",
+    "victoriousparenting.com", "flowtopia.io", "skool.com", "fourhourbody.com",
+    "sahilbloom.com", "chrismdp.com", "nikomavrakis.com", "agentics.org",
+    "agentics-foundation.com", "mail.anthropic.com", "updates.coursiv.co",
+    "peacefulparenthappykids.com", "learn.coursera.org", "thenewstack.io",
+    "ai.engineer", "saasacademy.com", "news.re-cinq.com", "theuncommonexecutive.com",
+    "fractionaljobs.io", "indecollective", "fullstack-pm.com", "heynextplay.com",
+    "ollama.com", "atlassian.com", "figma.com", "warp.dev", "dropbox.com",
+    "wordpress.com", "theliven.com", "heyfire.co", "disco.co", "producttalk.org",
+    "everydev.com", "recime.app", "recworks.co.uk", "jobgether.com", "ducere.ac.uk",
+    "nordvpn.com", "leavemealone", "the10xmanager", "manifoldailearning",
+    "claudecodecurious.com", "productinstitute.com", "coursera"
+  ],
+
+  "promo_domains": [
+    "national-lottery.co.uk", "webuyanycar.com", "nespresso.com", "joinhoney.com",
+    "uber.com", "nextdoor.co.uk", "service.tiktok.com", "airbnb.com", "anyvan.com",
+    "shopifyemail.com", "caffenero.com", "kwik-fit.com", "porkbun.com",
+    "marksandspencer.com", "shop.app", "vitality.co.uk", "moneysup",
+    "subscribe.nekohealth.com", "barkibu.com", "audible.co.uk", "leshuttle.com",
+    "thepay", "joinboardly.com", "odeon.co.uk", "papajohns", "coupert.com",
+    "volvocars.co.uk", "coinmarketcap.com", "coincorner.com", "vybe.build",
+    "aicamp.ai", "getquin.com"
+  ],
+
+  "info_domains": [
+    "ebay.com", "evri.com", "amazon.co.uk", "amazon.com", "royalmail", "dpd",
+    "ba.com", "aegeanair.com", "github.com", "kaggle.com", "docker.com",
+    "slack.com", "clearscore", "xe.com", "wise.com", "experian", "google.com"
+  ],
+
+  "event_domains": [
+    "luma-mail.com", "lu.ma", "eventbrite", "meetup.com", "booksy.com"
+  ],
+
+  "personal_patterns": [
+    "@gmail.com", "@yahoo.co.uk", "@oliver", "searchchainpartner", "keysearch.com",
+    "@hotmail", "@outlook", "@icloud"
+  ]
+}
