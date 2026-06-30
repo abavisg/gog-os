@@ -1,12 +1,13 @@
 # EmailOS Automation Design
 
-How the daily email loop runs unattended at 08:00, drains an inbox larger than
-the fetch cap, and keeps the move (write-back) gated behind your approval.
+How the daily email pipeline drains an inbox larger than the fetch cap and keeps
+the move (write-back) gated behind your approval. Scheduling is deferred — see
+§3 for why a cloud routine doesn't fit and what the path is.
 
 ## Decisions (locked)
 
-- **Approval model:** the 08:00 routine runs **fetch → normalise → classify →
-  triage → report** unattended, then **notifies you and stops**. **No emails move
+- **Approval model:** a scheduled (or manual) run does **fetch → normalise →
+  classify → triage → report**, then **notifies you and stops**. **No emails move
   until you run `/email-apply` yourself.** Read is automatic; write stays manual.
 - **Classifier:** triage must run without a human, so it becomes a committed,
   tested module (`gogos.gmail.gmail_classify`) — not an ad-hoc script. Built as a
@@ -77,31 +78,41 @@ With `GOGOS_ALL_CAP` raised high enough (e.g. 2000), a single batch usually
 clears everything and the loop runs once — but the loop guarantees correctness
 regardless of size.
 
-### 3. The 08:00 routine (claude.ai Routine)
+### 3. Scheduling the morning run — the constraint
 
-A cloud routine (runs without a local session, unlike CronCreate which is
-session-only) scheduled for ~08:00 local on weekdays. Its prompt:
+The original plan was an 08:00 **claude.ai cloud Routine**. Investigation showed
+this **does not fit the GogOS pipeline**: a cloud routine runs in Anthropic's
+cloud with a fresh git checkout and **none of** the local prerequisites the
+pipeline needs — no `.venv`, no `.env`, no Google OAuth token, no `.core/storage`.
+Running `gogos.gmail.gmail_fetch` there would fail immediately (no credentials).
 
-> Run the GogOS morning email pipeline for `abavisg`: fetch all → normalise →
-> classify → triage → render the report. **Do not move/apply anything.** Then
-> summarise the report (counts per folder + the Action items) and tell me to run
-> `/email-apply abavisg` (or `/email-loop abavisg`) to file them.
+So scheduling is **deferred**, with two viable paths for later:
 
-Because the routine is read-only, it's safe to run fully unattended. The moves
-wait for you. When you're at your desk you run `/email-apply` (one batch) or
-`/email-loop` (drain everything), reviewing the plan first.
+- **Local scheduler (launchd/cron on the Mac).** Runs the real `gogos` pipeline
+  with the local venv, OAuth token, and storage. Truly executes the read-only
+  morning triage. Only fires while the machine is on. This is the natural fit and
+  the recommended path when we automate.
+- **Cloud routine via the Gmail MCP connector.** A genuinely-headless path that
+  reads the inbox through the connected `Gmail` MCP connector (works in the
+  cloud) and reports a summary — but it would be a *parallel* classifier, not the
+  `gogos` code, so it duplicates logic and diverges from the tested module.
 
-## Why not a single fully-headless routine that also moves?
+Either way the rule stands: the scheduled run is **read-only** (fetch → classify
+→ report → notify). Moves remain manual via `/email-apply` (one batch) or
+`/email-loop` (drain all), so the approval gate is preserved.
 
-You chose read-only-routine + manual-apply deliberately: a headless run can't
-show you a move plan, and write-back crosses the approval gate the whole project
-is built around. Keeping the routine read-only preserves that gate while still
+## Why not a single fully-headless run that also moves?
+
+Read-only run + manual-apply is deliberate: an unattended run can't show you a
+move plan, and write-back crosses the approval gate the whole project is built
+around. Keeping the scheduled run read-only preserves that gate while still
 giving you a triaged inbox waiting every morning.
 
 ## Build order / status
 
 1. ✅ `gogos.gmail.gmail_classify` + tests (unblocks everything). — PR #3
 2. ✅ `gogos.gmail.gmail_loop` + `/email-loop` command + tests. — this PR
-3. ⏭️ Create the 08:00 read-only routine via RemoteTrigger.
+3. ⏭️ **Scheduling deferred.** Cloud routines can't run the local pipeline (no
+   venv/OAuth/storage); a local launchd/cron job is the path when we automate.
 4. ⏭️ (optional) Wire `classify` into `/email-report` so its triage step also
    runs without hand-classification.
