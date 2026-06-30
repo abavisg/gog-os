@@ -98,10 +98,10 @@ show you a move plan, and write-back crosses the approval gate the whole project
 is built around. Keeping the routine read-only preserves that gate while still
 giving you a triaged inbox waiting every morning.
 
-## Build order
+## Build order / status
 
-1. `gogos.gmail.gmail_classify` + tests (unblocks everything).
-2. Wire `classify` into a `/morning-email` or extend `/email-report` to use it
-   instead of hand-triage.
-3. `/email-loop` command + `gmail_apply` loop helper + tests.
-4. Create the 08:00 routine via RemoteTrigger once 1–3 are committed.
+1. ✅ `gogos.gmail.gmail_classify` + tests (unblocks everything). — PR #3
+2. ✅ `gogos.gmail.gmail_loop` + `/email-loop` command + tests. — this PR
+3. ⏭️ Create the 08:00 read-only routine via RemoteTrigger.
+4. ⏭️ (optional) Wire `classify` into `/email-report` so its triage step also
+   runs without hand-classification.
