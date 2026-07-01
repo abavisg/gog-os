@@ -157,3 +157,153 @@ def test_every_category_is_valid():
     out = m.classify_messages(samples, config=CONFIG)
     for item in out["items"]:
         assert item["category"] in valid
+
+
+# --- User rules (Phase 4.6 §2) -----------------------------------------------
+
+RULES = [
+    {"match": {"domain": "tldrnewsletter.com"}, "category": "Review"},
+    {"match": {"domain": "natwest.com"}, "category": "Safe to Delete"},  # must be refused
+    {"match": {"sender": "linkedin jobs"}, "category": "Newsletters"},
+]
+
+
+def test_user_rule_overrides_builtin():
+    m = _reload()
+    out = m.classify_messages([_msg("TLDR <dan@tldrnewsletter.com>", "Apple price hikes")],
+                              config=CONFIG, rules=RULES)
+    item = out["items"][0]
+    assert item["category"] == "Review"          # builtin says Newsletters
+    assert "User rule" in item["rationale"]
+
+
+def test_user_rule_can_never_push_protected_mail_to_safe_to_delete(capsys):
+    """The never-delete invariant is absolute: a user rule targeting protected
+    mail with Safe to Delete is refused, logged, and built-ins take over."""
+    m = _reload()
+    protected_cases = [
+        ("NatWest <x@natwest.com>", "Your latest card statement is now available"),
+        ("NatWest <x@natwest.com>", "Security alert: new login"),
+        ("NatWest <x@natwest.com>", "We've updated our app"),  # bank domain alone
+    ]
+    for frm, subj in protected_cases:
+        out = m.classify_messages([_msg(frm, subj)], config=CONFIG, rules=RULES)
+        assert out["items"][0]["category"] != "Safe to Delete", (frm, subj)
+    assert "refused" in capsys.readouterr().err
+
+
+def test_user_rule_may_reroute_nonprotected_mail_to_safe_to_delete():
+    m = _reload()
+    rules = [{"match": {"domain": "some-unknown-saas.io"}, "category": "Safe to Delete"}]
+    out = m.classify_messages([_msg("Random <x@some-unknown-saas.io>", "Weekly update")],
+                              config=CONFIG, rules=rules)
+    assert out["items"][0]["category"] == "Safe to Delete"
+
+
+# --- is_protected -------------------------------------------------------------
+
+def test_is_protected_covers_all_four_signals():
+    m = _reload()
+    assert m.is_protected(_msg("x@natwest.com", "hello"), CONFIG)            # bank domain
+    assert m.is_protected(_msg("x@foo.io", "Security alert"), CONFIG)        # security
+    assert m.is_protected(_msg("x@richmond.gov.uk", "Annual canvass"), CONFIG)  # civic
+    assert m.is_protected(_msg("x@foo.io", "your invoice"), CONFIG)          # financial ask
+    assert m.is_protected(_msg("kevin@gmail.com", "hi"), CONFIG)             # real person
+    assert not m.is_protected(_msg("news@foo.io", "Weekly update"), CONFIG)
+
+
+# --- Sender ledger (Phase 4.6 §3) ----------------------------------------------
+
+def _ledger():
+    from gogos.gmail import gmail_ledger
+    return {"fingerprint": gmail_ledger.config_fingerprint(), "senders": {}}
+
+
+def test_no_sender_splits_two_ways_in_a_run():
+    """The §3 acceptance test: subjects that would classify differently still
+    land in one category per (non-protected) sender within a run."""
+    m = _reload()
+    msgs = [
+        _msg("Notify <x@notify.foo.io>", "Susannah reacted to your reply", "id1"),  # -> Safe to Delete
+        _msg("Notify <x@notify.foo.io>", "Weekly update", "id2"),                   # alone -> Newsletters
+    ]
+    out = m.classify_messages(msgs, config=CONFIG, ledger=_ledger())
+    cats = {i["category"] for i in out["items"]}
+    assert len(cats) == 1, f"sender split two ways in one run: {cats}"
+
+
+def test_ledger_pins_sender_across_runs():
+    m = _reload()
+    ledger = _ledger()
+    out1 = m.classify_messages(
+        [_msg("Notify <x@notify.foo.io>", "Susannah reacted to your reply")],
+        config=CONFIG, ledger=ledger)
+    assert out1["items"][0]["category"] == "Safe to Delete"
+
+    # Next run, same ledger: a subject that alone would be Newsletters follows the pin.
+    out2 = m.classify_messages(
+        [_msg("Notify <x@notify.foo.io>", "Weekly update")],
+        config=CONFIG, ledger=ledger)
+    item = out2["items"][0]
+    assert item["category"] == "Safe to Delete"
+    assert "ledger" in item["rationale"].lower()
+
+
+def test_protected_mail_is_never_ledger_pinned():
+    """A ledger entry can't drag a bank statement away from Action, and
+    protected senders never enter the ledger at all."""
+    m = _reload()
+    ledger = _ledger()
+    ledger["senders"]["natwest.com"] = {"category": "Information", "source": "builtin"}
+
+    out = m.classify_messages(
+        [_msg("NatWest <x@natwest.com>", "Your latest card statement is now available"),
+         _msg("Kevin <kevin@gmail.com>", "Re: Saturday", "id2")],
+        config=CONFIG, ledger=ledger)
+    assert out["items"][0]["category"] == "Action"       # not the pinned Information
+    assert out["items"][1]["category"] == "Review"
+    assert "gmail.com" not in ledger["senders"]          # real person never ledgered
+
+
+def test_user_rule_updates_ledger_deliberately():
+    m = _reload()
+    ledger = _ledger()
+    ledger["senders"]["tldrnewsletter.com"] = {"category": "Newsletters", "source": "builtin"}
+    m.classify_messages([_msg("TLDR <dan@tldrnewsletter.com>", "news")],
+                        config=CONFIG, rules=RULES, ledger=ledger)
+    entry = ledger["senders"]["tldrnewsletter.com"]
+    assert entry["category"] == "Review"
+    assert entry["source"] == "user-rule"
+
+
+def test_relearn_recomputes_pins_and_logs(capsys):
+    """Config change (relearn=True): prior pins are ignored, the fresh decision
+    overwrites the entry, and the change is logged — never silent drift."""
+    m = _reload()
+    ledger = _ledger()
+    ledger["senders"]["some-unknown-saas.io"] = {"category": "Safe to Delete", "source": "builtin"}
+
+    out = m.classify_messages([_msg("Random <x@some-unknown-saas.io>", "Weekly update")],
+                              config=CONFIG, ledger=ledger, relearn=True)
+    assert out["items"][0]["category"] == "Newsletters"  # fresh builtin, not the pin
+    assert ledger["senders"]["some-unknown-saas.io"]["category"] == "Newsletters"
+    assert "re-learned" in capsys.readouterr().err
+
+
+def test_relearn_run_still_keeps_one_category_per_sender():
+    m = _reload()
+    msgs = [
+        _msg("Notify <x@notify.foo.io>", "Susannah reacted to your reply", "id1"),
+        _msg("Notify <x@notify.foo.io>", "Weekly update", "id2"),
+    ]
+    out = m.classify_messages(msgs, config=CONFIG, ledger=_ledger(), relearn=True)
+    assert len({i["category"] for i in out["items"]}) == 1
+
+
+def test_no_ledger_no_rules_behaves_as_before():
+    """Backwards compatibility: bare classify_messages is untouched."""
+    m = _reload()
+    out = m.classify_messages([_msg("TLDR <dan@tldrnewsletter.com>", "news")], config=CONFIG)
+    item = out["items"][0]
+    assert item["category"] == "Newsletters"
+    assert item["confidence"] == 0.7

@@ -1,0 +1,4 @@
+{
+  "_comment": "Ordered user classification rules for gogos.gmail.gmail_rules — checked FIRST, first match wins, override built-in rules. Each rule is {match, category}; match has exactly one of: domain (substring of sender domain), sender (substring of the From field), pattern (regex on the From field). category is one of Action / Review / Events / Information / Newsletters / Safe to Delete (a GSD/ prefix is accepted). Safety cap enforced in code: a rule can NEVER route financial/security/civic/real-person mail into Safe to Delete. Example: {\"match\": {\"sender\": \"LinkedIn Jobs\"}, \"category\": \"Review\"}",
+  "rules": []
+}

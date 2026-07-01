@@ -4,10 +4,24 @@ Replaces hand/script triage so the pipeline can run unattended (e.g. a scheduled
 morning routine). Pure, ordered, first-match-wins rules. Output matches the
 schema gmail_triage validates.
 
+Decision order per message (Phase 4.6 §2 + §3):
+  1. User rules (gmail_rules) — checked first, win over everything, EXCEPT
+     they can never route protected mail into "Safe to Delete" (refused,
+     logged, falls through).
+  2. Protected mail (financial/security/civic/real-person — is_protected)
+     always classifies fresh via the built-in head rules and is never
+     ledger-pinned: a bank statement must reach Action even when the same
+     bank's app notices are Information.
+  3. Sender ledger (gmail_ledger) — a previously ledgered sender reuses its
+     recorded category, so a sender never splits two ways within or across
+     runs. Ignored when config changed (explicit re-learn, logged).
+  4. Built-in rules below — the decision is recorded to the ledger.
+
 Safety invariant (enforced by rule ORDER, not by data):
   Anything financial, security-related, civic/legal, or from a real person is
   matched BEFORE the promo/newsletter rules, so it can never fall into
-  "Safe to Delete". Tested in test_gmail_classify.
+  "Safe to Delete". User rules cannot override this. Tested in
+  test_gmail_classify.
 
 Entry points:
   classify_messages(messages)        -> triage dict (pure)
@@ -24,6 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from gogos.auth.accounts import resolve_account
+from gogos.gmail import gmail_ledger, gmail_rules
 from gogos.paths import REPO_ROOT, latest_alias, storage_path
 
 _CONFIG_PATH = REPO_ROOT / ".core/config/gmail/classify.json"
@@ -89,6 +104,26 @@ def _domain(from_field: str) -> str:
 
 def _matches(domain: str, needles: list[str]) -> bool:
     return any(n in domain for n in needles)
+
+
+def is_protected(message: dict, config: dict) -> bool:
+    """True for mail the never-delete invariant covers: financial, security,
+    civic/legal, or from a real person.
+
+    Used two ways: (a) the safety cap — a user rule may never route protected
+    mail to Safe to Delete; (b) the ledger exemption — protected mail is
+    classified fresh per message, never pinned to a single sender category.
+    """
+    frm = message.get("from", "")
+    subject = message.get("subject", "") or ""
+    domain = _domain(frm)
+    return bool(
+        _SECURITY.search(subject)
+        or _CIVIC.search(subject) or _CIVIC.search(frm)
+        or _FINANCIAL.search(subject)
+        or _matches(domain, config.get("bank_domains", []))
+        or any(p in frm.lower() for p in config.get("personal_patterns", []))
+    )
 
 
 def classify_one(message: dict, config: dict) -> tuple[str, str]:
@@ -172,18 +207,69 @@ def classify_one(message: dict, config: dict) -> tuple[str, str]:
     return "Newsletters", "Long-tail automated mail — skim."
 
 
+def _decide(message: dict, config: dict, rules: list[dict],
+            ledger: dict | None, relearn: bool,
+            seen: set[str]) -> tuple[str, str, float]:
+    """One message -> (category, rationale, confidence) via the decision order
+    documented in the module docstring. Mutates `ledger` (records decisions);
+    `seen` tracks senders decided during THIS run so a re-learn run still
+    can't split a sender two ways."""
+    protected = is_protected(message, config)
+    sender = _domain(message.get("from", ""))
+
+    # 1. User rules — first, capped so protected mail can't become deletable.
+    refuse = {"Safe to Delete"} if protected else set()
+    ruled = gmail_rules.match_rule(message, rules, refuse=refuse)
+    if ruled is not None:
+        category, rationale = ruled
+        if ledger is not None and not protected:
+            gmail_ledger.record(ledger, sender, category, source="user-rule")
+            seen.add(sender)
+        return category, rationale, 0.9
+
+    # 2. Protected mail: always fresh (subject-driven), never ledger-pinned.
+    if protected:
+        category, rationale = classify_one(message, config)
+        return category, rationale, 0.7
+
+    # 3. Sender ledger pin. On a re-learn run (config changed) prior-run pins
+    #    are ignored, but senders already decided this run stay pinned.
+    if ledger is not None and (not relearn or sender in seen):
+        pinned = gmail_ledger.lookup(ledger, sender)
+        if pinned is not None:
+            return pinned, "Sender ledger: consistent with previous decision.", 0.8
+
+    # 4. Built-in rules; record the decision so the sender stays consistent.
+    category, rationale = classify_one(message, config)
+    if ledger is not None:
+        gmail_ledger.record(ledger, sender, category, source="builtin")
+        seen.add(sender)
+    return category, rationale, 0.7
+
+
 def classify_messages(messages: list[dict], config: dict | None = None,
-                      account: str = "") -> dict:
-    """Pure function: list of normalised messages -> triage dict."""
+                      account: str = "", rules: list[dict] | None = None,
+                      ledger: dict | None = None, relearn: bool = False) -> dict:
+    """Pure function: list of normalised messages -> triage dict.
+
+    `rules`/`ledger` are optional injections (the classify() wrapper loads
+    them); with both None the behaviour is the original built-in-only
+    classification. When a ledger dict is given it is mutated in place —
+    the caller persists it.
+    """
     if config is None:
         config = _load_config()
+    if rules is None:
+        rules = []
     items = []
+    seen: set[str] = set()
     for m in messages:
-        category, rationale = classify_one(m, config)
+        category, rationale, confidence = _decide(m, config, rules, ledger,
+                                                  relearn, seen)
         items.append({
             "id": m.get("id", ""),
             "category": category,
-            "confidence": 0.7,
+            "confidence": confidence,
             "rationale": rationale,
             "suggested_action": _SUGGESTED[category],
         })
@@ -206,7 +292,16 @@ def classify(account: str, slim_path: Path | None = None) -> int:
         print(f"ERROR: cannot read slim file {slim_path}: {exc}", file=sys.stderr)
         return 1
 
-    triage = classify_messages(slim.get("messages", []), account=account)
+    rules = gmail_rules.load_rules()
+    ledger = gmail_ledger.load_ledger(account)
+    relearn = gmail_ledger.needs_relearn(ledger)
+    if relearn and ledger["senders"]:
+        print("INFO  ledger: classification config changed — re-learning senders",
+              file=sys.stderr)
+
+    triage = classify_messages(slim.get("messages", []), account=account,
+                               rules=rules, ledger=ledger, relearn=relearn)
+    gmail_ledger.save_ledger(account, ledger)
 
     dated_dir = storage_path("gmail", account, "triage")
     (dated_dir / "triage.json").write_text(json.dumps(triage, indent=2))
