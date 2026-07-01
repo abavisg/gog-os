@@ -71,11 +71,28 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
 
 ## NEXT
 
-### Phase 4.6 — EmailOS finalisation
+### Phase 4.6 — EmailOS finalisation  🔒 SCOPE LOCKED (2026-07-01)
 
 Close out EmailOS: make unattended runs safe and reversible, add user-controlled rules,
 merge accounts, and give it a single morning entry point. Everything here stays inside
 the existing privacy/approval gates (metadata-only, moves via label+archive, never delete).
+
+**Scope is frozen.** The eight items below are the whole of Phase 4.6 — no additions without
+an explicit re-open. Parked items are named at the end and are explicitly *out*. Tunable
+parameters are pinned: reconciliation auto-learn threshold **N = 3 corrections**.
+
+**Delivery — thin vertical slices, one small PR each** (chosen order; each slice's prereqs
+are met by an earlier one):
+1. **v1a Capture** (§8) — `List-Unsubscribe` headers into fetch + normalise. Near-zero risk,
+   unblocks reconciliation, starts history.
+2. **`/email-undo`** (§1) — reversibility foundation before any automation.
+3. **User rules + sender ledger** (§2 + §3) — ledger is the prerequisite for auto-learn.
+4. **Reconcile + auto-learn + unsubscribe surface** (§8 v1b–v1d) — rides on the ledger.
+5. **Digest header** (§4) — small, standalone.
+6. **`/start-day` + multi-account merge + SessionStart hook** (§5 + §6) — the entry point.
+7. **Local scheduler** (§7) — wraps the finished read-only pipeline; last.
+
+Each slice: branch → implement + tests (keep the suite green) → commit → push → open a small PR.
 
 **1. Undo / reverse a batch (`/email-undo`).**
 - Every `apply` writes an **inverse plan** to `.core/storage/approvals/<account>/<date>/undo.json`
@@ -142,7 +159,7 @@ so nothing is blocked and each stage ships independently:
   the classifier filed it last run (recorded at apply time). The delta = your manual move.
   Pure metadata (label sets only), fully within the privacy gate. Produces per-sender
   correction counts.
-- **v1c — Learn (auto, logged, reversible).** After N corrections for a sender, **auto-update
+- **v1c — Learn (auto, logged, reversible).** After **3** corrections for a sender, **auto-update
   the sender ledger** to your corrected category; the classifier follows next run. This changes
   classifier behaviour without an explicit approval — acceptable because it only ever moves
   *labels* (never deletes) and both `/email-undo` and manual drag remain. Each auto-learn is
@@ -168,7 +185,7 @@ approval gate and needs a send scope. Named, not scheduled.
   ever passes the privacy gate as a result.
 - Reconciliation: a test proves a message moved (labels changed) since apply is detected as a
   correction and attributed to its sender.
-- Auto-learn: after N corrections a test proves the ledger updates to the corrected category and
+- Auto-learn: after 3 corrections a test proves the ledger updates to the corrected category and
   the change is logged (and revertible); it never routes an important mail to Safe to Delete.
 - Unsubscribe surfacing: a sender you rescue is excluded from candidates; one you never rescue is
   surfaced. No write-back occurs.
