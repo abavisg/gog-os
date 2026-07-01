@@ -96,6 +96,45 @@ def _plan(approved=True, moves=None):
     }
 
 
+# --- Applied-result record (feeds /email-undo) -----------------------------
+
+def test_apply_records_applied_result_for_undo(tmp_path, monkeypatch):
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(), svc)
+
+    import json
+    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    assert applied["moved_ids"] == ["m1", "m2"]
+    assert {mv["category"] for mv in applied["moves"]} == {"Action", "Newsletters"}
+    assert {mv["label_name"] for mv in applied["moves"]} == {"GSD/Action", "GSD/Newsletters"}
+
+
+def test_apply_records_only_successful_moves(tmp_path, monkeypatch):
+    """A move that fails must NOT appear in the applied result (undo won't over-reverse)."""
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    # GSD/Newsletters missing → resolve_destinations raises before any move, so
+    # instead drop a category the plan doesn't need and force one modify to fail.
+    svc = FakeService(_all_gsd_labels())
+    orig_modify = m._modify
+
+    def _flaky(service, message_id, add_label_ids, remove_label_ids, label_id_to_name):
+        if message_id == "m2":
+            raise RuntimeError("boom")
+        return orig_modify(service, message_id, add_label_ids, remove_label_ids,
+                           label_id_to_name)
+
+    monkeypatch.setattr(m, "_modify", _flaky)
+    result = m.apply_plan("personal", _plan(), svc)
+    assert result["moved_count"] == 1 and result["failed_count"] == 1
+
+    import json
+    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    assert applied["moved_ids"] == ["m1"]  # m2 excluded
+
+
 # --- Safety invariant: never delete ----------------------------------------
 
 def test_apply_adds_gsd_label_and_removes_inbox_only():

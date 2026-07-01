@@ -237,6 +237,31 @@ def load_plan(account: str) -> dict:
     return json.loads(path.read_text())
 
 
+def _write_applied_result(account: str, plan: dict, moved_ids: list[str]) -> Path:
+    """Persist what was actually moved so a later undo can reverse exactly that.
+
+    Records, per moved message, the GSD category it was filed into and that INBOX
+    was removed — the precise inverse gmail_undo needs. Only messages that truly
+    moved are recorded (failures are excluded), so undo never over-reverses.
+    """
+    moved_set = set(moved_ids)
+    by_id = {mv["id"]: mv for mv in plan.get("moves", [])}
+    applied = {
+        "applied_at": datetime.now(timezone.utc).isoformat(),
+        "account": account,
+        "action": "move",
+        "moves": [
+            {"id": mid, "category": by_id[mid]["category"],
+             "label_name": gsd_label_name(by_id[mid]["category"])}
+            for mid in moved_ids if mid in by_id
+        ],
+        "moved_ids": [mid for mid in moved_ids if mid in moved_set],
+    }
+    path = _approvals_dir(account) / "gmail-applied.json"
+    path.write_text(json.dumps(applied, indent=2))
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Applying
 # ---------------------------------------------------------------------------
@@ -273,6 +298,10 @@ def apply_plan(account: str, plan: dict, service) -> dict:
             moved.append(m["id"])
         except Exception as exc:  # noqa: BLE001 — report, continue
             failed.append({"id": m["id"], "error": str(exc)})
+
+    # Record what actually moved so /email-undo can reverse exactly this batch.
+    if moved:
+        _write_applied_result(account, plan, moved)
 
     return {
         "account": account,
