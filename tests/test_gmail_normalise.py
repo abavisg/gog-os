@@ -9,7 +9,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 RAW_SAMPLE = FIXTURES / "gmail_raw_sample.json"
 
 _SCHEMA_KEYS = ("id", "thread_id", "account", "from", "to",
-                "subject", "date", "snippet", "labels", "source")
+                "subject", "date", "snippet", "labels", "unsubscribe", "source")
 _FORBIDDEN_KEYS = ("payload", "body", "raw", "data", "parts")
 
 
@@ -106,6 +106,33 @@ def test_subject_header_extracted():
     raw_msg = _raw_sample()["messages"][0]
     result = m.normalise_message(raw_msg, "personal")
     assert result["subject"] == "Meeting tomorrow"
+
+
+# ---------------------------------------------------------------------------
+# List-Unsubscribe capture (metadata header, never body)
+# ---------------------------------------------------------------------------
+
+def test_unsubscribe_header_extracted():
+    m = _reload()
+    raw_msg = {
+        "id": "u1",
+        "threadId": "t1",
+        "headers": [
+            {"name": "From", "value": "news@promo.example"},
+            {"name": "List-Unsubscribe", "value": "<https://promo.example/unsub?x=1>"},
+        ],
+    }
+    result = m.normalise_message(raw_msg, "personal")
+    assert result["unsubscribe"] == "<https://promo.example/unsub?x=1>"
+
+
+def test_unsubscribe_absent_is_empty_string():
+    m = _reload()
+    raw_msg = {"id": "u2", "threadId": "t2", "headers": [
+        {"name": "From", "value": "friend@example.com"},
+    ]}
+    result = m.normalise_message(raw_msg, "personal")
+    assert result["unsubscribe"] == ""
 
 
 # ---------------------------------------------------------------------------

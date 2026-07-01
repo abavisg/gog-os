@@ -21,7 +21,17 @@ from gogos.auth.accounts import resolve_account
 from gogos.auth.google_auth import get_credentials
 from gogos.paths import latest_alias, storage_path
 
-_METADATA_HEADERS = ["From", "To", "Subject", "Date"]
+# List-Unsubscribe / -Post are metadata headers (never body): they name where a
+# sender lets you unsubscribe. Captured so downstream can surface an unsubscribe
+# link for recurring noise. They pass the privacy gate unchanged — see _privacy_gate.
+_METADATA_HEADERS = [
+    "From",
+    "To",
+    "Subject",
+    "Date",
+    "List-Unsubscribe",
+    "List-Unsubscribe-Post",
+]
 
 # Fields that must never appear in any stored record.
 _FORBIDDEN_TOP_LEVEL = {"raw", "data"}

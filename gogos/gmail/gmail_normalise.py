@@ -48,6 +48,7 @@ def normalise_message(raw: dict, account: str) -> dict:
         "date": _parse_date_utc(_header_value(headers, "Date")),
         "snippet": raw.get("snippet", ""),
         "labels": list(raw.get("labelIds", [])),
+        "unsubscribe": _header_value(headers, "List-Unsubscribe"),
         "source": "gmail",
     }
 

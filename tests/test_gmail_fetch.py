@@ -181,6 +181,32 @@ def test_privacy_gate_passes_top_level_body_with_no_data():
 
 
 # ---------------------------------------------------------------------------
+# List-Unsubscribe capture — requested + still passes the privacy gate
+# ---------------------------------------------------------------------------
+
+def test_metadata_headers_include_list_unsubscribe():
+    m = _reload()
+    assert "List-Unsubscribe" in m._METADATA_HEADERS
+    assert "List-Unsubscribe-Post" in m._METADATA_HEADERS
+
+
+def test_privacy_gate_passes_record_with_list_unsubscribe_header():
+    m = _reload()
+    record = {
+        "id": "u1",
+        "payload": {
+            "mimeType": "text/plain",
+            "headers": [
+                {"name": "From", "value": "news@promo.example"},
+                {"name": "List-Unsubscribe", "value": "<https://promo.example/unsub>"},
+                {"name": "List-Unsubscribe-Post", "value": "List-Unsubscribe=One-Click"},
+            ],
+        },
+    }
+    m._privacy_gate(record)  # must not raise — headers are metadata, not body
+
+
+# ---------------------------------------------------------------------------
 # _project_message — safe projection
 # ---------------------------------------------------------------------------
 
@@ -262,7 +288,9 @@ def test_get_uses_metadata_format(tmp_path, monkeypatch):
     m.fetch("personal")
 
     assert captured.get("format") == "metadata"
-    assert captured.get("metadataHeaders") == ["From", "To", "Subject", "Date"]
+    metadata_headers = captured.get("metadataHeaders") or []
+    assert metadata_headers == m._METADATA_HEADERS
+    assert "List-Unsubscribe" in metadata_headers
 
 
 # ---------------------------------------------------------------------------
