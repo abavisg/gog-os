@@ -84,6 +84,60 @@ def _cat_prefix(category: str) -> str:
     return emoji
 
 
+def _unsubscribe_href(value: str) -> str:
+    """First usable link from a List-Unsubscribe value.
+
+    The header holds comma-separated <...> entries (https and/or mailto).
+    Prefer an http(s) URL; fall back to mailto; else empty.
+    """
+    entries = re.findall(r"<([^>]+)>", value)
+    for entry in entries:
+        if entry.lower().startswith(("http://", "https://")):
+            return entry
+    for entry in entries:
+        if entry.lower().startswith("mailto:"):
+            return entry
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation extras (Phase 4.6 §8): learned rules + unsubscribe candidates
+# ---------------------------------------------------------------------------
+
+def _render_reconcile_md(reconcile_data: dict) -> list[str]:
+    lines: list[str] = []
+
+    learned = reconcile_data.get("learned", [])
+    suggestions = reconcile_data.get("rescue_suggestions", [])
+    if learned or suggestions:
+        lines.append("### 🎓 Learned rules")
+        lines.append("")
+        for entry in learned:
+            lines.append(
+                f"- learned: **{entry['sender']}** → {entry['category']} "
+                f"({entry['corrections']} corrections) — auto-updated in the "
+                "sender ledger; override with a user rule to revert"
+            )
+        for s in suggestions:
+            lines.append(
+                f"- suggestion: **{s['sender']}** rescued to inbox "
+                f"{s['rescues']}× — consider a user rule in rules.json"
+            )
+        lines.append("")
+
+    candidates = reconcile_data.get("unsubscribe_candidates", [])
+    if candidates:
+        lines.append(f"### 🔕 Unsubscribe candidates ({len(candidates)})")
+        lines.append("*Never rescued from Safe to Delete / Newsletters — click to unsubscribe yourself; GogOS sends nothing.*")
+        lines.append("")
+        for c in candidates:
+            href = _unsubscribe_href(c.get("unsubscribe", ""))
+            label = f"**{c['sender']}** ({c['category']}, {c['message_count']} msg)"
+            lines.append(f"- {label} — [unsubscribe]({href})" if href else f"- {label}")
+        lines.append("")
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # Style: compact
 # One line per email in Action/Review/Events; name-run for the rest.
@@ -210,6 +264,7 @@ def render_report(
     slim_path: Path,
     generated_at: str | None = None,
     config: dict | None = None,
+    reconcile_data: dict | None = None,
 ) -> str:
     if generated_at is None:
         generated_at = _now_local()
@@ -254,6 +309,10 @@ def render_report(
     else:
         lines.extend(_render_compact(groups, index))
 
+    # Reconciliation extras: learned rules + unsubscribe candidates
+    if reconcile_data:
+        lines.extend(_render_reconcile_md(reconcile_data))
+
     # Footer
     lines.append("")
     lines.append("---")
@@ -285,6 +344,7 @@ def render_html_report(
     slim_path: Path,
     generated_at: str | None = None,
     config: dict | None = None,
+    reconcile_data: dict | None = None,
 ) -> str:
     if generated_at is None:
         generated_at = _now_local()
@@ -339,6 +399,38 @@ def render_html_report(
 {rows_html}
     </tbody>
   </table>
+</section>""")
+
+    # Reconciliation extras: learned rules + unsubscribe candidates
+    if reconcile_data:
+        extra_rows: list[str] = []
+        for entry in reconcile_data.get("learned", []):
+            extra_rows.append(
+                f'<li>🎓 learned: <strong>{esc(entry["sender"])}</strong> → '
+                f'{esc(entry["category"])} ({entry["corrections"]} corrections; '
+                f'auto-updated in the sender ledger)</li>'
+            )
+        for s in reconcile_data.get("rescue_suggestions", []):
+            extra_rows.append(
+                f'<li>💡 <strong>{esc(s["sender"])}</strong> rescued to inbox '
+                f'{s["rescues"]}× — consider a user rule</li>'
+            )
+        for c in reconcile_data.get("unsubscribe_candidates", []):
+            href = _unsubscribe_href(c.get("unsubscribe", ""))
+            link = f' — <a href="{esc(href)}">unsubscribe</a>' if href else ""
+            extra_rows.append(
+                f'<li>🔕 <strong>{esc(c["sender"])}</strong> '
+                f'({esc(c["category"])}, {c["message_count"]} msg){link}</li>'
+            )
+        if extra_rows:
+            rows_html = "\n".join(extra_rows)
+            sections.append(f"""
+<section class="category">
+  <h2 style="color:#5f6368">🔁 Reconciliation</h2>
+  <p class="meta">Unsubscribe is a link you click yourself — GogOS sends nothing.</p>
+  <ul>
+{rows_html}
+  </ul>
 </section>""")
 
     sections_html = "\n".join(sections) if sections else "<p><em>No messages to triage.</em></p>"
@@ -405,10 +497,23 @@ def report(account: str, triage_path: Path, slim_path: Path) -> int:
         print(f"ERROR: cannot read slim file {slim_path}: {exc}", file=sys.stderr)
         return 1
 
+    # Reconciliation extras are optional: absent until /email-reconcile has run.
+    reconcile_data: dict | None = None
+    reconcile_path = latest_alias(
+        storage_path("gmail", resolve_account(account), "reconcile"),
+        "latest-reconcile.json")
+    if reconcile_path.exists():
+        try:
+            reconcile_data = _load_json(reconcile_path)
+        except (OSError, json.JSONDecodeError):
+            reconcile_data = None
+
     config = _load_report_config()
     generated_at = _now_local()
-    md = render_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
-    html = render_html_report(triage_data, slim_data, triage_path, slim_path, generated_at, config)
+    md = render_report(triage_data, slim_data, triage_path, slim_path,
+                       generated_at, config, reconcile_data)
+    html = render_html_report(triage_data, slim_data, triage_path, slim_path,
+                              generated_at, config, reconcile_data)
 
     dated_dir = storage_path("reports", "email", resolve_account(account))
 

@@ -153,3 +153,23 @@ def test_apply_then_undo_is_label_noop():
     # Whatever apply added, undo removed; whatever apply removed, undo added.
     assert set(apply_call["addLabelIds"]) == set(undo_call["removeLabelIds"])
     assert set(apply_call["removeLabelIds"]) == set(undo_call["addLabelIds"])
+
+
+# --- undo marks the batch undone (reconcile must skip it) -------------------
+
+def test_apply_undo_marks_applied_batch_undone(tmp_path, monkeypatch):
+    """After undo, the applied record carries undone_at so gmail_reconcile
+    never reads GogOS's own INBOX restorations as user corrections."""
+    import json
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    applied = _applied()
+    (tmp_path / "gmail-applied.json").write_text(json.dumps(applied))
+
+    svc = FakeService(_all_gsd_labels())
+    plan = m.build_undo("personal", applied=applied)
+    m.apply_undo("personal", plan, svc)
+
+    annotated = json.loads((tmp_path / "gmail-applied.json").read_text())
+    assert "undone_at" in annotated
