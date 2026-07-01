@@ -133,5 +133,10 @@ Then read the output file and **print its contents to the conversation** as the 
 cat .core/storage/reports/email/<account>/<date>/latest.md
 ```
 
+The report opens with a 3-line digest header (Phase 4.6 §4): what needs you
+(Action/Review/Events with financial/security and invite call-outs), the queue
+(Information/Newsletters/Safe to Delete), and reconciliation signals (learned
+rules, suggestions, unsubscribe candidates) when present.
+
 The script also writes `latest.html` to the same directory and opens it in Google Chrome automatically.
 No write-back to Gmail.

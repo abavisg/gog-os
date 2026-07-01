@@ -1,6 +1,7 @@
 """Gmail triage Markdown + HTML report renderer.
 
-Reads latest-triage.json + latest-slim.json and renders a grouped report.
+Reads latest-triage.json + latest-slim.json and renders a grouped report,
+topped by a 3-line executive digest (build_digest — Phase 4.6 §4).
 Report style is controlled by .core/config/gmail/report.json:
   style: "compact" | "card" | "summary"
   detail_categories: list of category names expanded in "summary" style
@@ -98,6 +99,100 @@ def _unsubscribe_href(value: str) -> str:
         if entry.lower().startswith("mailto:"):
             return entry
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Digest header (Phase 4.6 §4): 3-line executive summary
+# ---------------------------------------------------------------------------
+
+_ATTENTION_CATS = ("Action", "Review", "Events")
+_QUEUE_CATS = ("Information", "Newsletters", "Safe to Delete")
+# Call-outs are derived from our own classifier's rationale strings
+# (gmail_classify), so they are deterministic — no re-classification here.
+_PROTECTED_HINT = re.compile(r"financial|security|civic|statement|bill|payment|renewal", re.I)
+_INVITE_HINT = re.compile(r"invitation", re.I)
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
+def build_digest(triage_data: dict, reconcile_data: dict | None = None) -> list[str]:
+    """Executive summary lines for the top of the report (Phase 4.6 §4).
+
+    Line 1 — what needs the user: Action / Review / Events, with call-outs
+    (financial/security Actions, Events that are invitations).
+    Line 2 — the queue: Information / Newsletters / Safe to Delete counts
+    (plus any unknown category, so nothing is silently dropped).
+    Line 3 — reconciliation signals: learned rules, rule suggestions,
+    unsubscribe candidates.
+
+    At most 3 lines; a line with nothing to say is dropped, never padded.
+    Plain text, account-agnostic: /start-day reuses these lines when it
+    merges accounts, and Calendar/Task digests will join them (Phases 5–6).
+    """
+    items = triage_data.get("items", [])
+    if not items:
+        return []
+
+    counts: dict[str, int] = {}
+    protected_actions = 0
+    invites = 0
+    for item in items:
+        cat = item.get("category", "Uncategorised")
+        counts[cat] = counts.get(cat, 0) + 1
+        rationale = item.get("rationale", "") or ""
+        if cat == "Action" and _PROTECTED_HINT.search(rationale):
+            protected_actions += 1
+        elif cat == "Events" and _INVITE_HINT.search(rationale):
+            invites += 1
+
+    lines: list[str] = []
+
+    attention: list[str] = []
+    if counts.get("Action"):
+        part = f"⚡ {counts['Action']} Action"
+        if protected_actions:
+            part += f" ({protected_actions} financial/security)"
+        attention.append(part)
+    if counts.get("Review"):
+        attention.append(f"📋 {counts['Review']} Review")
+    if counts.get("Events"):
+        part = f"📅 {counts['Events']} Events"
+        if invites:
+            part += f" ({_plural(invites, 'invite')})"
+        attention.append(part)
+    lines.append(" · ".join(attention) if attention else "✅ Nothing needs action")
+
+    queue: list[str] = []
+    other_cats = [c for c in counts if c not in _ATTENTION_CATS and c not in _QUEUE_CATS]
+    for cat in (*_QUEUE_CATS, *other_cats):
+        n = counts.get(cat, 0)
+        if not n:
+            continue
+        emoji = _cat_prefix(cat).strip()
+        part = f"{emoji} {n} {cat}"
+        if cat == "Safe to Delete":
+            part += " queued"
+        queue.append(part)
+    if queue:
+        lines.append(" · ".join(queue))
+
+    if reconcile_data:
+        signals: list[str] = []
+        n = len(reconcile_data.get("learned", []))
+        if n:
+            signals.append(f"🎓 {_plural(n, 'learned rule')}")
+        n = len(reconcile_data.get("rescue_suggestions", []))
+        if n:
+            signals.append(f"💡 {_plural(n, 'rule suggestion')}")
+        n = len(reconcile_data.get("unsubscribe_candidates", []))
+        if n:
+            signals.append(f"🔕 {_plural(n, 'unsubscribe candidate')}")
+        if signals:
+            lines.append(" · ".join(signals))
+
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +387,12 @@ def render_report(
         lines.append(f"Sources: `{triage_path}` · `{slim_path}`")
         return "\n".join(lines)
 
+    # Digest header (§4): 3-line executive summary before anything else
+    digest = build_digest(triage_data, reconcile_data)
+    if digest:
+        lines.extend(f"> {d}" for d in digest)
+        lines.append("")
+
     # Group by category
     groups: dict[str, list[dict]] = {}
     for item in items:
@@ -437,6 +538,13 @@ def render_html_report(
     msg_count = len(items)
     cat_count = len(groups)
 
+    # Digest header (§4): 3-line executive summary before the sections
+    digest_lines = build_digest(triage_data, reconcile_data)
+    digest_html = ""
+    if digest_lines:
+        digest_body = "<br>\n".join(esc(d) for d in digest_lines)
+        digest_html = f'<div class="digest">\n{digest_body}\n</div>\n'
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -461,13 +569,16 @@ def render_html_report(
   .date   {{white-space:nowrap; color:#5f6368; width:10%;}}
   .subject {{width:42%;}}
   .action  {{color:#1a73e8; width:32%; font-style:italic;}}
+  .digest  {{background:#fff; border-left:4px solid #1a73e8; border-radius:8px;
+             padding:12px 16px; margin-bottom:16px; font-size:0.9rem;
+             line-height:1.7; box-shadow:0 1px 3px rgba(0,0,0,.12);}}
   footer   {{font-size:0.75rem; color:#9aa0a6; margin-top:24px;}}
 </style>
 </head>
 <body>
 <h1>Email Triage — {esc(account)} · {esc(date_part)}</h1>
 <div class="meta">{msg_count} messages &nbsp;·&nbsp; {cat_count} categories &nbsp;·&nbsp; generated {esc(generated_at)}</div>
-{sections_html}
+{digest_html}{sections_html}
 <footer>Sources: {esc(str(triage_path))} · {esc(str(slim_path))}</footer>
 </body>
 </html>"""
