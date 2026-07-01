@@ -599,3 +599,115 @@ def test_unsubscribe_href_falls_back_to_mailto():
     assert m._unsubscribe_href("<mailto:unsub@x.com>") == "mailto:unsub@x.com"
     assert m._unsubscribe_href("") == ""
     assert m._unsubscribe_href("junk-no-brackets") == ""
+
+
+# ---------------------------------------------------------------------------
+# Digest header (Phase 4.6 §4): 3-line executive summary
+# ---------------------------------------------------------------------------
+
+def _item(mid: str, category: str, rationale: str) -> dict:
+    return {"id": mid, "category": category, "confidence": 0.7,
+            "rationale": rationale, "suggested_action": "x"}
+
+
+def _digest_triage() -> dict:
+    """3 Action (2 protected), 1 Review, 2 Events (1 invite), 1 Information,
+    2 Newsletters, 3 Safe to Delete."""
+    items = [
+        _item("a1", "Action", "Financial: statement/bill/payment/renewal — review or pay."),
+        _item("a2", "Action", "Security / account-safety alert — verify."),
+        _item("a3", "Action", "User rule #1: linkedin.com → Action"),
+        _item("r1", "Review", "Message from a real person — read; reply if needed."),
+        _item("e1", "Events", "Calendar invitation / booking / appointment."),
+        _item("e2", "Events", "Ticket reminder."),
+        _item("i1", "Information", "Order / shipping / travel notice — record."),
+        _item("n1", "Newsletters", "Subscribed newsletter / digest."),
+        _item("n2", "Newsletters", "Long-tail automated mail — skim."),
+        _item("s1", "Safe to Delete", "Social / notification noise."),
+        _item("s2", "Safe to Delete", "Promotional / marketing."),
+        _item("s3", "Safe to Delete", "Promotional / marketing."),
+    ]
+    return {"generated_at": "2026-07-01T10:00:00+00:00",
+            "account": "personal", "items": items}
+
+
+def test_digest_first_line_counts_attention_with_callouts():
+    m = _reload()
+    lines = m.build_digest(_digest_triage())
+    assert lines[0] == "⚡ 3 Action (2 financial/security) · 📋 1 Review · 📅 2 Events (1 invite)"
+
+
+def test_digest_second_line_counts_the_queue():
+    m = _reload()
+    lines = m.build_digest(_digest_triage())
+    assert lines[1] == "ℹ️ 1 Information · 📰 2 Newsletters · 🗑 3 Safe to Delete queued"
+
+
+def test_digest_third_line_only_with_reconcile_signals():
+    m = _reload()
+    assert len(m.build_digest(_digest_triage())) == 2
+    lines = m.build_digest(_digest_triage(), reconcile_data=RECONCILE)
+    assert lines[2] == "🎓 1 learned rule · 💡 1 rule suggestion · 🔕 1 unsubscribe candidate"
+
+
+def test_digest_empty_reconcile_adds_no_third_line():
+    m = _reload()
+    empty = {"learned": [], "rescue_suggestions": [], "unsubscribe_candidates": []}
+    assert len(m.build_digest(_digest_triage(), reconcile_data=empty)) == 2
+
+
+def test_digest_empty_items_returns_no_lines():
+    m = _reload()
+    assert m.build_digest(_empty_triage()) == []
+
+
+def test_digest_nothing_needs_action_fallback():
+    m = _reload()
+    triage = {"generated_at": "x", "account": "personal",
+              "items": [_item("n1", "Newsletters", "Subscribed newsletter / digest.")]}
+    lines = m.build_digest(triage)
+    assert lines[0] == "✅ Nothing needs action"
+
+
+def test_digest_unknown_category_lands_in_queue_line():
+    m = _reload()
+    triage = {"generated_at": "x", "account": "personal",
+              "items": [_item("u1", "Mystery", "?")]}
+    lines = m.build_digest(triage)
+    assert "1 Mystery" in lines[1]
+
+
+def test_report_renders_digest_as_blockquote_before_sections(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    md = m.render_report(_triage_data(), _slim_data(), tp, sp,
+                         generated_at="2026-07-01T12:00:00+01:00")
+    # Fixture triage: 2 Action, 1 Review — no call-outs (test rationales)
+    assert "> ⚡ 2 Action · 📋 1 Review" in md
+    assert md.index("> ⚡") < md.index("### ")
+
+
+def test_report_empty_triage_has_no_digest(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    slim = {"account": "personal", "count": 0, "messages": [], "source": "gmail"}
+    md = m.render_report(_empty_triage(), slim, tp, sp,
+                         generated_at="2026-07-01T12:00:00+01:00")
+    assert ">" not in md
+
+
+def test_html_report_contains_digest_box(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    html = m.render_html_report(_triage_data(), _slim_data(), tp, sp,
+                                generated_at="2026-07-01T12:00:00+01:00")
+    assert '<div class="digest">' in html
+    assert "⚡ 2 Action · 📋 1 Review" in html
+
+
+def test_html_digest_appears_before_first_category_section(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    html = m.render_html_report(_triage_data(), _slim_data(), tp, sp,
+                                generated_at="2026-07-01T12:00:00+01:00")
+    assert html.index('<div class="digest">') < html.index('<section class="category">')
