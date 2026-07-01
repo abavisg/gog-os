@@ -280,7 +280,8 @@ def test_io_alias_and_dated_file_identical(tmp_path, monkeypatch):
 
 
 def test_io_uses_reports_storage_path(tmp_path, monkeypatch):
-    """storage_path must be called with module='reports', kind='email'."""
+    """storage_path is called for the report (reports/email) and for the
+    optional reconcile artefact lookup (gmail/<account>/reconcile)."""
     m = _reload()
     calls = []
     dated_dir = tmp_path / "dated"
@@ -302,8 +303,8 @@ def test_io_uses_reports_storage_path(tmp_path, monkeypatch):
     with patch("subprocess.Popen"):
         m.report("personal", triage_path, slim_path)
 
-    assert len(calls) == 1
-    assert calls[0] == ("reports", "email", "personal")
+    assert ("reports", "email", "personal") in calls
+    assert ("gmail", "personal", "reconcile") in calls
 
 
 def test_missing_triage_file_returns_nonzero(tmp_path, monkeypatch):
@@ -532,3 +533,69 @@ def test_load_report_config_reads_file(tmp_path, monkeypatch):
     cfg = m._load_report_config()
     assert cfg["style"] == "card"
     assert cfg["detail_categories"] == ["Events"]
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation extras (Phase 4.6 §8): learned rules + unsubscribe candidates
+# ---------------------------------------------------------------------------
+
+RECONCILE = {
+    "learned": [{"sender": "promo.example.com", "category": "Review", "corrections": 3}],
+    "rescue_suggestions": [{"sender": "keep.example.com", "rescues": 4}],
+    "unsubscribe_candidates": [{
+        "sender": "tldrnewsletter.com", "category": "Newsletters",
+        "message_count": 2,
+        "unsubscribe": "<https://tldr.example/unsub>, <mailto:unsub@tldr.example>",
+    }],
+}
+
+
+def _paths(tmp_path):
+    return tmp_path / "triage.json", tmp_path / "slim.json"
+
+
+def test_report_shows_learned_rule_lines(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    md = m.render_report(_triage_data(), _slim_data(), tp, sp,
+                         generated_at="2026-07-01T12:00:00+01:00",
+                         reconcile_data=RECONCILE)
+    assert "learned: **promo.example.com** → Review (3 corrections)" in md
+    assert "keep.example.com** rescued to inbox 4×" in md
+
+
+def test_report_shows_unsubscribe_link_preferring_https(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    md = m.render_report(_triage_data(), _slim_data(), tp, sp,
+                         generated_at="2026-07-01T12:00:00+01:00",
+                         reconcile_data=RECONCILE)
+    assert "[unsubscribe](https://tldr.example/unsub)" in md
+    assert "mailto:" not in md  # https preferred when both are offered
+
+
+def test_report_without_reconcile_data_is_unchanged(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    md = m.render_report(_triage_data(), _slim_data(), tp, sp,
+                         generated_at="2026-07-01T12:00:00+01:00")
+    assert "Learned rules" not in md
+    assert "Unsubscribe candidates" not in md
+
+
+def test_html_report_shows_reconcile_section_with_link(tmp_path):
+    m = _reload()
+    tp, sp = _paths(tmp_path)
+    html = m.render_html_report(_triage_data(), _slim_data(), tp, sp,
+                                generated_at="2026-07-01T12:00:00+01:00",
+                                reconcile_data=RECONCILE)
+    assert "Reconciliation" in html
+    assert '<a href="https://tldr.example/unsub">unsubscribe</a>' in html
+    assert "GogOS sends nothing" in html
+
+
+def test_unsubscribe_href_falls_back_to_mailto():
+    m = _reload()
+    assert m._unsubscribe_href("<mailto:unsub@x.com>") == "mailto:unsub@x.com"
+    assert m._unsubscribe_href("") == ""
+    assert m._unsubscribe_href("junk-no-brackets") == ""

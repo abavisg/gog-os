@@ -70,6 +70,15 @@ def run_loop(account: str, *, auto_apply: bool = False,
     account = resolve_account(account)
     svc = service if service is not None else gmail_apply._service(account)
 
+    # Reconcile once up front: learn from manual moves made since the last
+    # applied batch BEFORE re-classifying (each apply overwrites the applied
+    # record). Read-only + local writes; a failure never blocks the drain.
+    try:
+        from gogos.gmail import gmail_reconcile
+        gmail_reconcile.reconcile(account, service=svc)
+    except Exception as exc:  # noqa: BLE001 — enhancement, not the pipeline
+        print(f"WARN  reconcile skipped: {exc}", file=sys.stderr)
+
     batches = []
     iterations = 0
 

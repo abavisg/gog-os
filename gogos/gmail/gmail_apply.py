@@ -243,6 +243,7 @@ def _write_applied_result(account: str, plan: dict, moved_ids: list[str]) -> Pat
     Records, per moved message, the GSD category it was filed into and that INBOX
     was removed — the precise inverse gmail_undo needs. Only messages that truly
     moved are recorded (failures are excluded), so undo never over-reverses.
+    The sender is kept so gmail_reconcile can attribute later manual moves.
     """
     moved_set = set(moved_ids)
     by_id = {mv["id"]: mv for mv in plan.get("moves", [])}
@@ -252,7 +253,8 @@ def _write_applied_result(account: str, plan: dict, moved_ids: list[str]) -> Pat
         "action": "move",
         "moves": [
             {"id": mid, "category": by_id[mid]["category"],
-             "label_name": gsd_label_name(by_id[mid]["category"])}
+             "label_name": gsd_label_name(by_id[mid]["category"]),
+             "from": by_id[mid].get("from", "")}
             for mid in moved_ids if mid in by_id
         ],
         "moved_ids": [mid for mid in moved_ids if mid in moved_set],

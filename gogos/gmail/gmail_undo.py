@@ -95,6 +95,17 @@ def load_applied(account: str) -> dict:
     return json.loads(path.read_text())
 
 
+def _mark_applied_undone(account: str) -> None:
+    """Annotate the latest applied result with undone_at (best effort)."""
+    path = _approvals_dir(account) / "gmail-applied.json"
+    try:
+        applied = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return  # nothing to annotate (e.g. plan injected in tests)
+    applied["undone_at"] = datetime.now(timezone.utc).isoformat()
+    path.write_text(json.dumps(applied, indent=2))
+
+
 def build_undo(account: str, *, applied: dict | None = None) -> dict:
     """Build an undo plan from the latest applied result. Does NOT touch Gmail."""
     account = resolve_account(account)
@@ -152,6 +163,12 @@ def apply_undo(account: str, plan: dict, service) -> dict:
             reversed_ids.append(r["id"])
         except Exception as exc:  # noqa: BLE001 — report, continue
             failed.append({"id": r["id"], "error": str(exc)})
+
+    # Mark the applied batch as undone: GogOS restored INBOX itself, so
+    # gmail_reconcile must never read those restorations as user corrections.
+    # The plan carries the resolved account (build_undo resolved it).
+    if reversed_ids:
+        _mark_applied_undone(plan.get("account", account))
 
     return {
         "account": account,

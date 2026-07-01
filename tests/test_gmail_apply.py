@@ -291,3 +291,16 @@ def test_is_gsd_destination():
     assert not m._is_gsd_destination("Action")
     assert not m._is_gsd_destination("GSD/Unknown")
     assert not m._is_gsd_destination("Other/Action")
+
+
+def test_applied_result_keeps_sender_for_reconcile(tmp_path, monkeypatch):
+    """gmail_reconcile attributes manual moves by sender — apply must keep it."""
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(), svc)
+
+    import json
+    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    for mv in applied["moves"]:
+        assert "from" in mv

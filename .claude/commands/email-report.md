@@ -57,6 +57,23 @@ python -m gogos.gmail.gmail_normalise <account> .core/storage/gmail/<account>/in
 Writes `latest-slim.json` in the same dated directory.
 Fail loudly and stop if this step fails.
 
+### Step 2.5 — Reconcile manual moves (read-only)
+
+Run:
+
+```
+python -m gogos.gmail.gmail_reconcile <account>
+```
+
+Compares the last applied batch's current Gmail labels against where the
+classifier filed them: manual moves become per-sender corrections, repeated
+corrections auto-learn into the sender ledger (logged in the report), and
+never-rescued senders with a `List-Unsubscribe` header become unsubscribe
+candidates. Reads label sets only; never mutates Gmail.
+
+If this step fails (e.g. nothing applied yet), print a one-line warning and
+continue — the report simply has no reconciliation section.
+
 ### Step 3 — Triage via email-triage skill
 
 Invoke the `email-triage` skill, passing:
