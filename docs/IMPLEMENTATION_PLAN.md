@@ -49,17 +49,57 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
 - `/calendar-brief [account] [today|tomorrow|week]` end-to-end working.
 - Tests passing (199/199).
 
+### Phase 4.5 — EmailOS automation (unattended triage + batch drain)
+- `gogos/gmail/gmail_classify.py` — deterministic, ordered first-match-wins classifier
+  (normalised slim JSON → triage JSON, same schema `gmail_triage` validates). Runs with
+  no human in the loop. Sender lists in `.core/config/gmail/classify.json` so they grow
+  without code changes. Never-delete invariant (financial/security/civic/real-person
+  never land in Safe to Delete) enforced by rule order and tested.
+- `gogos/gmail/gmail_loop.py` + `/email-loop [account] [--yes]` — drains an inbox larger
+  than the fetch cap by looping fetch→normalise→classify→triage→report→apply in batches
+  until the inbox is empty. Bounded (max 20 iterations). `--yes` pre-authorises all
+  batches; default pauses for approval per batch. Still never deletes.
+- `docs/EMAILOS_AUTOMATION.md` — locked decisions: scheduled run stays read-only
+  (fetch→classify→report→notify), moves remain manual via `/email-apply` / `/email-loop`.
+- `docs/CONNECTOR_CONTRACT.md` — the `fetch(client, window)` / `normalise(raw)` seam every
+  connector conforms to, ahead of extracting connectors into a separate repo.
+- Scheduling deferred: a cloud routine can't run the local pipeline (no venv/OAuth/storage);
+  a local launchd/cron job is the path when we automate.
+- Tests passing (289/289).
+
 ---
 
 ## NEXT
 
 ### Phase 5 — TaskOS Local MVP
 
-Build local task schema and `/task-add`, `/tasks-today`, `/task-done`.
+Local-first task store: no external service, no write-back gate needed (all data is
+local). Follows the module shape — `add` / `list` / `update` functions + `__main__` CLI,
+each tested — and the storage convention (dated file **and** a `latest-*` alias).
+
+Modules:
+- `gogos/tasks/task_store.py` — the store. A task is `{id, title, status, created_utc,
+  updated_utc, due, tags, history[]}`; status ∈ `open | done | dropped`. Append-safe
+  creation (new task never rewrites existing ones); every status change appends to
+  `history[]` with a UTC timestamp rather than overwriting — status updates preserve
+  history. Tasks persist to `.core/storage/tasks/<account-or-local>/tasks.jsonl`
+  (append-only) with a derived `latest-open.json` slim projection for consumers.
+- `gogos/tasks/task_report.py` — renders today's / open tasks to Markdown (mirrors the
+  existing `*_report.py` shape). No skill needed for the MVP — deterministic listing.
+
+Commands:
+- `/task-add <title> [--due YYYY-MM-DD] [--tag ...]` — append a new open task.
+- `/tasks-today` — list open tasks (due today or overdue first, then undated).
+- `/task-done <id>` — mark done; appends to history, refreshes `latest-open.json`.
 
 Acceptance criteria:
-- Append-safe creation, status updates preserve history.
-- Morning brief can read open tasks.
+- Append-safe creation, status updates preserve history (nothing is ever rewritten in
+  place; `history[]` is the audit trail).
+- `latest-open.json` slim projection stays current after every mutation, so the morning
+  brief (Phase 6) can read open tasks without parsing the full JSONL.
+- Timestamps stored UTC, rendered local at report time (per storage conventions).
+- Tests under `tests/test_tasks_*.py` cover: append-only creation, history preservation
+  on `done`/`dropped`, and the `latest-open.json` projection.
 
 ### Phase 6 — BriefingOS MVP
 
