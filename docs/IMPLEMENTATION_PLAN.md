@@ -71,6 +71,77 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
 
 ## NEXT
 
+### Phase 4.6 — EmailOS finalisation
+
+Close out EmailOS: make unattended runs safe and reversible, add user-controlled rules,
+merge accounts, and give it a single morning entry point. Everything here stays inside
+the existing privacy/approval gates (metadata-only, moves via label+archive, never delete).
+
+**1. Undo / reverse a batch (`/email-undo`).**
+- Every `apply` writes an **inverse plan** to `.core/storage/approvals/<account>/<date>/undo.json`
+  alongside the move plan: for each moved message, the exact reversal (remove `GSD/<Category>`,
+  restore `INBOX`).
+- `/email-undo [account]` replays the latest `undo.json` through the same gated `_modify`,
+  so undo is as safe as apply and never deletes. Makes unattended/scheduled moves reversible.
+
+**2. User classification rules (override, safety-capped).**
+- New config `.core/config/gmail/rules.json`: ordered user rules, each `{match, category}`
+  where `match` targets sender domain / substring / pattern (e.g. `LinkedIn Jobs → GSD/Review`).
+- User rules are checked **first** and win over built-in rules — **except** they can never
+  route a financial/security/civic/real-person mail into `Safe to Delete`; the never-delete
+  invariant stays absolute (a user rule that tries is refused, logged, and falls through).
+- No new folders/labels — reuse the existing `GSD/Review` (read-then-delete/archive) and the
+  current category set. Review is the holding pen; low-confidence built-in matches route there
+  rather than to a destructive-ish category.
+
+**3. Sender-consistency ledger (enforce + learn).**
+- A local ledger `.core/storage/gmail/<account>/sender-ledger.json` records `sender → category`
+  decisions. Same sender always classifies the same way within and across runs.
+- Config or user-rule changes update the ledger (explicit re-learn), never a silent drift.
+- Test asserts no sender splits two ways in a run; runtime asserts a new decision matches the
+  ledger or updates it deliberately.
+
+**4. Digest header on the report.**
+- Add a 3-line executive summary at the top of the email report: counts by category with the
+  important call-outs (e.g. "4 Action (2 financial), 1 Event needs RSVP, 62 Safe-to-Delete
+  queued"). Designed to grow as Calendar/Task digests join it in `/start-day`.
+
+**5. Multi-account merge (personal + work).**
+- `/start-day` (and the email report) can run **both** accounts and present **one merged
+  panel, each item account-tagged** `[personal]` / `[work]`. Fetch/classify/apply still run
+  per-account under the hood; only the view is unified. Undo and approval remain per-account.
+
+**6. `/start-day` orchestrator + SessionStart hook.**
+- `/start-day` is the single morning command: runs EmailOS **read-only** (fetch → classify →
+  triage → report) across accounts, prints the merged digest panel, and **stops**. No moves —
+  write-back stays behind `/email-apply` / `/email-loop`.
+- A SessionStart **hook** *offers* it ("Run /start-day? 12 new, 3 need action") — it nudges,
+  never auto-runs write-back, preserving local-first + approval principles.
+- Later, `/start-day` folds in CalendarOS and TaskOS digests (Phases 5–6).
+
+**7. Local scheduler (unparks the morning run).**
+- A local **launchd/cron** job runs the real `gogos` pipeline (has venv, OAuth token, storage)
+  at ~08:00: fetch → classify → triage → report → **notify**, read-only. Fires only while the
+  Mac is on. Moves stay manual. (Cloud routines remain out — they can't run the local pipeline.)
+
+**Explore before building — unsubscribe surfacing (item 6 from recap):**
+- For repeat `Safe to Delete` / `Newsletters` senders, surface the `List-Unsubscribe` header
+  (a header, not body — stays within the metadata-only privacy gate) so one action kills the
+  source. Open question: one-click unsubscribe (`List-Unsubscribe-Post`, RFC 8058) crosses into
+  write-back and needs the approval gate; scope in a design pass before committing.
+
+**Acceptance criteria:**
+- `/email-undo` fully reverses the latest batch; a test proves apply→undo is a no-op on labels.
+- User rules override built-ins but a test proves they can't push an important mail to Safe to Delete.
+- Sender-ledger test proves no sender classifies two ways in a run.
+- Digest header renders correct counts; merged panel account-tags every item.
+- `/start-day` runs read-only across accounts and never moves; the hook only offers, never acts.
+- Scheduler documented and installable; the scheduled run is provably read-only.
+
+**Parked (EmailOS v2 backlog — named, not scheduled):** VIP / waiting-on detection; snooze/defer
+a thread (TaskOS overlap); weekly email review feeding ReflectionOS; low-confidence "Needs-Review"
+as a distinct signal beyond reusing `GSD/Review`.
+
 ### Phase 5 — TaskOS Local MVP
 
 Local-first task store: no external service, no write-back gate needed (all data is
