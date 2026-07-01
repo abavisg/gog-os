@@ -124,11 +124,38 @@ the existing privacy/approval gates (metadata-only, moves via label+archive, nev
   at ~08:00: fetch → classify → triage → report → **notify**, read-only. Fires only while the
   Mac is on. Moves stay manual. (Cloud routines remain out — they can't run the local pipeline.)
 
-**Explore before building — unsubscribe surfacing (item 6 from recap):**
-- For repeat `Safe to Delete` / `Newsletters` senders, surface the `List-Unsubscribe` header
-  (a header, not body — stays within the metadata-only privacy gate) so one action kills the
-  source. Open question: one-click unsubscribe (`List-Unsubscribe-Post`, RFC 8058) crosses into
-  write-back and needs the approval gate; scope in a design pass before committing.
+**8. Reconciliation loop + unsubscribe surfacing.**
+
+The key insight: the classifier is currently fire-and-forget — it never learns when you
+overrule it by dragging a message elsewhere. That same manual-correction signal is what makes
+unsubscribe *trustworthy* (a sender you never rescue is safe to kill) AND what fixes
+misclassification (a sender you keep rescuing should be re-learned, never unsubscribed).
+So reconciliation is the foundation; unsubscribe and auto-learn are consumers of it. Staged
+so nothing is blocked and each stage ships independently:
+
+- **v1a — Capture (ships immediately, zero risk).** Add `List-Unsubscribe` and
+  `List-Unsubscribe-Post` to `_METADATA_HEADERS` in `gmail_fetch.py` and to the normalised
+  record in `gmail_normalise.py` (new `unsubscribe` field). These are headers, not body — they
+  pass the existing privacy gate unchanged (no body ever reaches storage). Data starts
+  accumulating so later stages have history.
+- **v1b — Reconcile.** On each fetch, compare a message's *current* Gmail labels against where
+  the classifier filed it last run (recorded at apply time). The delta = your manual move.
+  Pure metadata (label sets only), fully within the privacy gate. Produces per-sender
+  correction counts.
+- **v1c — Learn (auto, logged, reversible).** After N corrections for a sender, **auto-update
+  the sender ledger** to your corrected category; the classifier follows next run. This changes
+  classifier behaviour without an explicit approval — acceptable because it only ever moves
+  *labels* (never deletes) and both `/email-undo` and manual drag remain. Each auto-learn is
+  **logged as a "learned rule" line in the report** and easily reverted, so it is never a silent
+  black box. (This is the mechanism the sender-consistency ledger in §3 learns from.)
+- **v1d — Surface unsubscribe.** Candidate = a sender carrying `List-Unsubscribe` that you
+  **never rescue** from `Safe to Delete` / `Newsletters` (per reconciliation). The report/panel
+  shows the unsubscribe link or `mailto:`; **you click it yourself** — zero write-back, no new
+  gate, no new OAuth scope. Senders you *do* rescue are excluded (they get re-learned instead).
+
+**Parked (unsubscribe v2):** gated one-click unsubscribe (`/email-unsubscribe` performing the
+`mailto:` send or RFC 8058 `List-Unsubscribe-Post`) — a genuine outbound action that crosses the
+approval gate and needs a send scope. Named, not scheduled.
 
 **Acceptance criteria:**
 - `/email-undo` fully reverses the latest batch; a test proves apply→undo is a no-op on labels.
@@ -137,6 +164,14 @@ the existing privacy/approval gates (metadata-only, moves via label+archive, nev
 - Digest header renders correct counts; merged panel account-tags every item.
 - `/start-day` runs read-only across accounts and never moves; the hook only offers, never acts.
 - Scheduler documented and installable; the scheduled run is provably read-only.
+- `List-Unsubscribe` capture: a test proves the header reaches the normalised record and no body
+  ever passes the privacy gate as a result.
+- Reconciliation: a test proves a message moved (labels changed) since apply is detected as a
+  correction and attributed to its sender.
+- Auto-learn: after N corrections a test proves the ledger updates to the corrected category and
+  the change is logged (and revertible); it never routes an important mail to Safe to Delete.
+- Unsubscribe surfacing: a sender you rescue is excluded from candidates; one you never rescue is
+  surfaced. No write-back occurs.
 
 **Parked (EmailOS v2 backlog — named, not scheduled):** VIP / waiting-on detection; snooze/defer
 a thread (TaskOS overlap); weekly email review feeding ReflectionOS; low-confidence "Needs-Review"
