@@ -1,6 +1,8 @@
 # /log [type] [text]
 
-Model: Claude Haiku 4.5 for simple usage, Claude Sonnet 4.6 for implementation.
+> **Stub** — backing module (ActivityOS, Phase 7) not built yet.
+
+Implementation model: Sonnet (default — unpinned); runtime rendering may pin Haiku when built (per the model policy in CLAUDE.md).
 
 Purpose: append a structured activity log entry.
 

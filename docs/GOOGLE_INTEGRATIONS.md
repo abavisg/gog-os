@@ -1,91 +1,35 @@
 # Google Integrations
 
-## Source of truth
+OAuth setup and the data GogOS reads from Gmail and Google Calendar.
 
-Use official Google Workspace Python quickstarts as the baseline for Gmail and Calendar integration.
+## One-time Google Cloud setup
 
-## Requirements
-
-- Python 3.10.7+ minimum.
-- Prefer Python 3.11+ for the project.
-- Google Cloud project.
-- Gmail API enabled.
-- Google Calendar API enabled.
-- OAuth consent screen configured.
-- OAuth Client ID of type Desktop app.
-- `credentials.json` downloaded locally and never committed.
-
-## Python libraries
-
-```bash
-python3 -m pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib python-dotenv pydantic pytest rich
-```
+1. Create a Google Cloud project.
+2. Enable the Gmail API and the Google Calendar API.
+3. Configure the OAuth consent screen.
+4. Create an OAuth Client ID of type **Desktop app**.
+5. Download the credentials JSON to `.core/config/secrets/google_credentials.json` (gitignored — see [SECURITY.md](SECURITY.md)).
+6. `/account-add <alias> <email>`, then `/login-google <alias>`.
+7. Validate with `/setup-check`.
 
 ## OAuth model
 
-Use InstalledAppFlow for a local desktop flow.
+`InstalledAppFlow` local desktop flow (`gogos/auth/google_auth.py`). One token per account containing both scopes, stored at `.core/storage/auth/<account>/google_token.json`, mode `0600`. Expired tokens refresh automatically; a scope change is detected and surfaced — `/logout-google <account>` and re-authenticate.
 
-Token files should be stored per account and per integration.
-
-```text
-.core/storage/auth/personal/google_token.json
-.core/storage/auth/work/google_token.json
-```
-
-For simplicity, use one token per account containing both Gmail and Calendar scopes if both are enabled. If scopes change, delete and regenerate the token.
-
-## Recommended read-only scopes
-
-Gmail read-only:
-
-```text
-https://www.googleapis.com/auth/gmail.readonly
-```
-
-Calendar read-only:
-
-```text
-https://www.googleapis.com/auth/calendar.readonly
-```
-
-Later write scopes should be separate and gated by explicit user approval.
-
-Potential later Gmail modify scope:
+## Scopes (current)
 
 ```text
 https://www.googleapis.com/auth/gmail.modify
+https://www.googleapis.com/auth/calendar.readonly
 ```
 
-Potential later Calendar event scope:
+`gmail.modify` exists solely so `/email-apply` can label + archive. It does not permit permanent deletion, and GogOS never calls a delete/trash endpoint — the enforcement lives in `gmail_apply` (see [EMAILOS.md](EMAILOS.md)). Calendar remains read-only; a Calendar write scope would be added only behind the approval gate.
 
-```text
-https://www.googleapis.com/auth/calendar.events
-```
+## Gmail fetch
 
-Do not add write scopes in the MVP.
+Message list query defaults to since-yesterday (window-controlled), each message fetched with `format="metadata"` and metadata headers only — `From, To, Subject, Date, List-Unsubscribe` — plus Gmail's snippet and label ids. No body is ever requested or stored (hard-asserted in code).
 
-## Gmail fetch strategy
-
-Default mode: slim.
-
-Use Gmail message list query:
-
-```text
-in:inbox newer_than:2d
-```
-
-For each message, fetch metadata format:
-
-```python
-service.users().messages().get(
-    userId="me",
-    id=message_id,
-    format="metadata",
-    metadataHeaders=["From", "To", "Subject", "Date"]
-).execute()
-```
-
-Normalised email record:
+Normalised record (`gmail_normalise` is authoritative):
 
 ```json
 {
@@ -98,58 +42,17 @@ Normalised email record:
   "date": "2026-06-04T08:10:00+00:00",
   "snippet": "Short Gmail snippet",
   "labels": ["INBOX", "UNREAD"],
+  "unsubscribe": "<https://example.com/unsub>",
   "source": "gmail"
 }
 ```
 
-## Calendar fetch strategy
+## Calendar fetch
 
-Use Calendar API events list with:
+Events list with `calendarId="primary"`, `singleEvents=True`, `orderBy="startTime"`, and `timeMin`/`timeMax` from the requested period (today/tomorrow/week). Safe projection: event descriptions are never fetched into storage.
 
-- `calendarId="primary"`
-- `singleEvents=True`
-- `orderBy="startTime"`
-- `timeMin` and `timeMax` based on requested period.
-
-Normalised event record:
-
-```json
-{
-  "id": "calendar-event-id",
-  "account": "personal",
-  "calendar_id": "primary",
-  "title": "Event title",
-  "start": "2026-06-04T09:00:00+01:00",
-  "end": "2026-06-04T09:30:00+01:00",
-  "all_day": false,
-  "location": "",
-  "attendees": [],
-  "status": "confirmed",
-  "description_present": true,
-  "source": "google_calendar"
-}
-```
+Normalised record (`calendar_normalise` is authoritative): `id, summary, status, start, start_datetime_utc, end_datetime_utc, all_day, duration_minutes, location, organizer_email, organizer_name, attendees, attendee_count, has_conference, is_recurring, visibility, transparency, html_link, source, account` — datetimes stored UTC, rendered local at report time.
 
 ## Credential safety
 
-Never commit:
-
-- `credentials.json`
-- token files
-- `.env`
-- report files containing private data
-- raw Gmail/Calendar snapshots
-
-Add these to `.gitignore`.
-
-## Setup steps for user
-
-1. Create Google Cloud project.
-2. Enable Gmail API.
-3. Enable Google Calendar API.
-4. Configure OAuth consent screen.
-5. Create OAuth Client ID, Desktop app.
-6. Download credentials JSON.
-7. Place it under `.core/config/secrets/google_credentials.json`.
-8. Run `/login-google personal`.
-9. Validate with `/setup-check`.
+`credentials.json`, token files, `.env`, and everything under `.core/storage/` are gitignored and never committed. Full rules in [SECURITY.md](SECURITY.md).
