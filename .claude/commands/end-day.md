@@ -1,6 +1,8 @@
 # /end-day
 
-Model: Claude Sonnet 4.6
+> **Stub** — backing module (ReflectionOS, Phase 8) not built yet.
+
+Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: generate end-of-day review.
 

@@ -48,7 +48,7 @@ Alias → email resolution lives in `gogos/auth/accounts.py` (config in `.core/c
 
 ## Approval gate (state-changing ops)
 
-1. Write a proposed action to `.core/storage/approvals/YYYY-MM-DD/{operation}.json`.
+1. Write a proposed action to `.core/storage/approvals/<account>/<date>/{operation}.json`.
 2. Apply only after explicit user confirmation.
 
 ## Model selection
@@ -69,7 +69,8 @@ Today all five skills are normal-reasoning, so none pin a model. Add a pin only 
 
 ## Working on this repo
 
-- Run tests: `.venv/bin/python -m pytest -q` (currently 247 passing — keep it green).
+- Run tests: `.venv/bin/python -m pytest -q` — keep the suite green.
 - New modules follow the existing shape: `fetch` → `normalise` → `report`, each tested under `tests/test_<module>_*.py`.
-- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: Phase 5 — TaskOS.**
+- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: Phase 4.6 slice 7 (local scheduler), then Phase 5 — TaskOS.**
+- EmailOS end-to-end behaviour and safety invariants: `docs/EMAILOS.md`.
 - Some commands (`/morning-brief`, `/log`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules — don't assume a command means the module is built.

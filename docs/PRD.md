@@ -1,5 +1,8 @@
 # GogOS PRD
 
+> Product vision. For what's actually built and what's next, see
+> [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (source of truth).
+
 ## 1. Product Name
 
 GogOS

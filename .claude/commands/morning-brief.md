@@ -1,6 +1,8 @@
 # /morning-brief
 
-Model: Claude Sonnet 4.6
+> **Stub** — backing module (BriefingOS, Phase 6) not built yet.
+
+Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: generate the daily GogOS command centre.
 

@@ -1,6 +1,8 @@
 # /news-brief [feed]
 
-Model: Claude Sonnet 4.6
+> **Stub** — backing module (NewsOS, Phase 9) not built yet.
+
+Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: generate a relevant, source-linked news brief from configured feeds.
 
