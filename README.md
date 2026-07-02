@@ -21,7 +21,7 @@ Source of truth: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 |---|---|
 | FoundationOS (paths, setup check) | Done |
 | Google Auth (multi-account OAuth) | Done |
-| EmailOS (triage, gated write-back, undo, rules, auto-learn, `/start-day`) | Done — local scheduler remaining |
+| EmailOS (triage, gated write-back, undo, rules, auto-learn, `/start-day`, scheduler) | Done |
 | CalendarOS (read-only brief) | Done |
 | TaskOS | Next |
 | BriefingOS, ActivityOS, ReflectionOS, NewsOS | Planned |
@@ -38,6 +38,7 @@ Source of truth: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 | `/email-apply [account]` | Move triaged email into GSD folders (two-step approval) |
 | `/email-undo [account]` | Reverse the last applied batch |
 | `/email-loop [account] [--yes]` | Drain an oversized inbox in batches |
+| `/schedule-morning [HH:MM\|off\|status]` | Install/remove the daily read-only triage (launchd, ~08:00) |
 | `/calendar-brief [account] [today\|tomorrow\|week]` | Read-only calendar brief |
 | `/morning-brief` `/log` `/end-day` `/news-brief` | Stubs — backing modules not built yet |
 

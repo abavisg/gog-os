@@ -67,7 +67,7 @@ Build one module at a time. No dashboard. No write-back until read-only workflow
   a local launchd/cron job is the path when we automate.
 - Tests passing (289/289).
 
-### Phase 4.6 — EmailOS finalisation (slices 1–6 of 7; scope locked 2026-07-01)
+### Phase 4.6 — EmailOS finalisation (complete; scope locked 2026-07-01)
 
 Full behaviour documented in `docs/EMAILOS.md`. Delivered as thin vertical slices,
 one PR each, pinned parameter: auto-learn threshold N = 3 corrections.
@@ -89,26 +89,22 @@ one PR each, pinned parameter: auto-learn threshold N = 3 corrections.
 - **Slice 6 — `/start-day` + multi-account merge + SessionStart hook.** One read-only
   morning command across all accounts, merged account-tagged panel, then stops (a test
   proves the module can't reach the apply engine). The hook only *offers* the command.
-- Tests passing (385/385).
-
----
-
-## NEXT
-
-### Phase 4.6 slice 7 — local scheduler (last EmailOS slice)
-
-A local **launchd/cron** job runs the real `gogos` pipeline (has venv, OAuth token, storage)
-at ~08:00: fetch → classify → triage → report → **notify**, read-only. Fires only while the
-Mac is on. Moves stay manual. (Cloud routines remain out — they can't run the local pipeline;
-see `docs/EMAILOS.md`.)
-
-Acceptance criteria:
-- Scheduler documented and installable; the scheduled run is provably read-only.
+- **Slice 7 — local scheduler.** `/schedule-morning [HH:MM|off|status]` +
+  `gogos/system/scheduler.py`: installs a launchd agent that runs the read-only pipeline
+  per account at ~08:00 (report without browser auto-open), posts one macOS notification,
+  and never writes the `/start-day` panel — the SessionStart nudge keeps its counts.
+  Provably read-only (source-scan test); fires only while the Mac is on. Cloud routines
+  stay out (no venv/OAuth/storage; see `docs/EMAILOS.md`).
+- Tests passing (403/403).
 
 **Parked (EmailOS v2 backlog — named, not scheduled):** gated one-click unsubscribe
 (`/email-unsubscribe` — outbound send crossing the approval gate, needs a send scope);
 VIP / waiting-on detection; snooze/defer a thread (TaskOS overlap); weekly email review
 feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond `GSD/Review`.
+
+---
+
+## NEXT
 
 ### Phase 5 — TaskOS Local MVP
 

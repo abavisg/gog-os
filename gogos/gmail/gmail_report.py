@@ -9,7 +9,8 @@ Report style is controlled by .core/config/gmail/report.json:
 Entry point:
   python -m gogos.gmail.gmail_report <account> <triage_json_path> <slim_json_path>
 
-Safety: no Gmail API calls, no write-back, no auto-open.
+Safety: no Gmail API calls, no write-back. Opens the HTML report in Chrome
+unless called with auto_open=False (the scheduled run must never pop a browser).
 """
 from __future__ import annotations
 
@@ -588,7 +589,8 @@ def render_html_report(
 # I/O entry point
 # ---------------------------------------------------------------------------
 
-def report(account: str, triage_path: Path, slim_path: Path) -> int:
+def report(account: str, triage_path: Path, slim_path: Path,
+           auto_open: bool = True) -> int:
     if not triage_path.exists():
         print(f"ERROR: triage file not found: {triage_path}", file=sys.stderr)
         return 1
@@ -640,8 +642,9 @@ def report(account: str, triage_path: Path, slim_path: Path) -> int:
     style = config.get("style", "compact")
     print(f"OK  Wrote {item_count}-item {style} report → {html_alias}")
 
-    import subprocess
-    subprocess.Popen(["open", "-a", "Google Chrome", str(html_alias)])
+    if auto_open:
+        import subprocess
+        subprocess.Popen(["open", "-a", "Google Chrome", str(html_alias)])
 
     return 0
 
