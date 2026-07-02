@@ -71,6 +71,6 @@ Today all five skills are normal-reasoning, so none pin a model. Add a pin only 
 
 - Run tests: `.venv/bin/python -m pytest -q` — keep the suite green.
 - New modules follow the existing shape: `fetch` → `normalise` → `report`, each tested under `tests/test_<module>_*.py`.
-- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: Phase 4.6 slice 7 (local scheduler), then Phase 5 — TaskOS.**
+- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: Phase 5 — TaskOS.**
 - EmailOS end-to-end behaviour and safety invariants: `docs/EMAILOS.md`.
 - Some commands (`/morning-brief`, `/log`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules — don't assume a command means the module is built.

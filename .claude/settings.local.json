@@ -6,7 +6,14 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(open:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(.venv/bin/python *)",
+      "Bash(gh pr *)",
+      "Read(//Library/Frameworks/Python.framework/Versions/3.12/bin/**)",
+      "Bash(git checkout *)",
+      "Bash(.venv/bin/python -m pytest -q)",
+      "Bash(.venv/bin/python -m gogos.system.scheduler status)",
+      "Bash(.venv/bin/python -c \"from gogos.system.scheduler import plist_xml; print\\(plist_xml\\(8,0\\)\\)\")"
     ],
     "deny": [
       "Bash(rm -rf:*)"

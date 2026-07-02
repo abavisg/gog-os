@@ -56,8 +56,8 @@ Multi-account: fetch/classify/apply/undo/approval are always **per-account**; on
 ## Morning automation
 
 - **SessionStart hook** runs `python -m gogos.system.start_day --nudge`: reads only local artefacts and prints a one-line offer to run `/start-day`. It nudges; it never runs the pipeline.
-- **Local scheduler (planned — Phase 4.6 slice 7).** A launchd/cron job runs the read-only pipeline (fetch → classify → report → notify) at ~08:00 using the local venv, token, and storage. A claude.ai cloud routine was investigated and rejected: it has no venv, no OAuth token, no `.core/storage`, so it can't run this pipeline and would need a parallel, divergent classifier.
-- The rule either way: **the scheduled run is read-only**. An unattended run can't show you a move plan, so moves stay behind `/email-apply` / `/email-loop`. Read-only-run + manual-apply is the deliberate design, not a gap.
+- **Local scheduler** (`/schedule-morning [HH:MM|off|status]`, module `gogos/system/scheduler.py`). Installs a launchd agent (`com.gogos.start-day`) that runs the read-only pipeline per account (reconcile → fetch → classify → report, no browser) at ~08:00, posts one macOS notification with the counts, and stops. It deliberately does *not* write the `/start-day` panel, so the nudge still greets you with the morning's counts. Fires only while the Mac is on (launchd runs a missed time once on wake); logs to `.core/storage/logs/scheduler/`. A claude.ai cloud routine was investigated and rejected: it has no venv, no OAuth token, no `.core/storage`, so it can't run this pipeline and would need a parallel, divergent classifier.
+- The rule either way: **the scheduled run is read-only** — a test proves the scheduler module cannot reference the apply engine. An unattended run can't show you a move plan, so moves stay behind `/email-apply` / `/email-loop`. Read-only-run + manual-apply is the deliberate design, not a gap.
 
 ## Parked (named, not scheduled)
 
