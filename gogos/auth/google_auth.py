@@ -1,3 +1,13 @@
+"""Google OAuth credentials per account, cached as a chmod 600 token.
+
+Entry point:
+  get_credentials(account, *, interactive=True) -> Credentials
+
+With interactive=False (scheduled and unattended runs) a missing token, or one
+that cannot refresh, raises RuntimeError instead of opening a browser.
+
+Library module, no CLI; /login-google calls get_credentials via python -c.
+"""
 from __future__ import annotations
 
 import os
@@ -53,7 +63,7 @@ def _scopes_match(creds: Credentials) -> bool:
     return stored == wanted or stored.issuperset(wanted)
 
 
-def get_credentials(account: str) -> Credentials:
+def get_credentials(account: str, *, interactive: bool = True) -> Credentials:
     token_path = _token_path(account)
     creds: Credentials | None = None
 
@@ -73,6 +83,12 @@ def get_credentials(account: str) -> Credentials:
             creds.refresh(Request())
             _write_token(token_path, creds)
             return creds
+
+    if not interactive:
+        raise RuntimeError(
+            f"Account {account} needs /login-google; "
+            "refusing to open a browser in an unattended run"
+        )
 
     creds_path = _credentials_path()
     flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)

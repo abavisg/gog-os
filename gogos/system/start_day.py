@@ -28,6 +28,7 @@ from datetime import datetime
 from pathlib import Path
 
 from gogos.auth.accounts import known_accounts, list_accounts, resolve_account
+from gogos.auth.google_auth import get_credentials
 from gogos.gmail import gmail_classify, gmail_fetch, gmail_normalise, gmail_reconcile
 from gogos.gmail.gmail_report import _cat_prefix, _sender_short, build_digest
 from gogos.paths import STORAGE_ROOT, latest_alias, local_tz, now_utc, storage_path, today
@@ -75,8 +76,11 @@ def run_account(account: str, window: str = "yesterday") -> dict:
     Returns {account, alias, triage, slim, reconcile, triage_path, slim_path}.
     Raises RuntimeError if the read pipeline fails; reconcile is best-effort
     (it needs a previously applied batch) and never blocks the morning run.
+    Credentials are checked non-interactively first: a missing or
+    unrefreshable token raises instead of opening a browser.
     """
     email = resolve_account(account)
+    get_credentials(email, interactive=False)
 
     try:
         gmail_reconcile.reconcile(email)

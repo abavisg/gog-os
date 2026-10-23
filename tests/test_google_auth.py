@@ -253,3 +253,55 @@ def test_valid_token_no_network(tmp_path, monkeypatch):
         m.get_credentials("personal")
 
     mock_req.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Non-interactive mode (spec 1 item 4): never open a browser unattended
+# ---------------------------------------------------------------------------
+
+_UNATTENDED = ("Account personal needs /login-google; "
+               "refusing to open a browser in an unattended run")
+
+
+def test_non_interactive_missing_token_raises_instead_of_running_flow(tmp_path, monkeypatch):
+    m = _reload()
+    monkeypatch.setattr(m, "_token_path", lambda account: tmp_path / "missing.json")
+    mock_flow = MagicMock()
+    with patch("gogos.auth.google_auth.InstalledAppFlow.from_client_secrets_file",
+               return_value=mock_flow) as from_secrets:
+        with pytest.raises(RuntimeError) as exc_info:
+            m.get_credentials("personal", interactive=False)
+
+    assert str(exc_info.value) == _UNATTENDED
+    from_secrets.assert_not_called()
+    mock_flow.run_local_server.assert_not_called()
+
+
+def test_non_interactive_token_without_refresh_token_raises(tmp_path, monkeypatch):
+    m = _reload()
+    token_file = tmp_path / "google_token.json"
+    token_file.write_text("{}")
+    creds = _fake_expired_creds()
+    creds.refresh_token = None
+    monkeypatch.setattr(m, "_token_path", lambda account: token_file)
+    mock_flow = MagicMock()
+    with patch("gogos.auth.google_auth.Credentials.from_authorized_user_file",
+               return_value=creds), \
+         patch("gogos.auth.google_auth.InstalledAppFlow.from_client_secrets_file",
+               return_value=mock_flow):
+        with pytest.raises(RuntimeError, match="refusing to open a browser"):
+            m.get_credentials("personal", interactive=False)
+    mock_flow.run_local_server.assert_not_called()
+
+
+def test_non_interactive_expired_token_with_refresh_token_still_refreshes(tmp_path, monkeypatch):
+    m = _reload()
+    token_file = tmp_path / "google_token.json"
+    token_file.write_text("{}")
+    creds = _fake_expired_creds()
+    monkeypatch.setattr(m, "_token_path", lambda account: token_file)
+    with patch("gogos.auth.google_auth.Credentials.from_authorized_user_file",
+               return_value=creds), \
+         patch("gogos.auth.google_auth.Request"):
+        assert m.get_credentials("personal", interactive=False) is creds
+    creds.refresh.assert_called_once()

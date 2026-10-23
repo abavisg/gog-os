@@ -209,3 +209,27 @@ def test_nudge_never_creates_directories(tmp_path, monkeypatch):
     _nudge_env(m, tmp_path, monkeypatch)
     m.nudge()
     assert not (tmp_path / "storage").exists()
+
+
+# --- run_account never opens a browser (spec 1 item 4) -------------------------
+
+def test_run_account_checks_credentials_non_interactively_before_any_fetch(monkeypatch):
+    import pytest
+
+    m = _reload()
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
+    calls = []
+
+    def fake_get_credentials(account, *, interactive=True):
+        calls.append((account, interactive))
+        raise RuntimeError("needs /login-google")
+
+    monkeypatch.setattr(m, "get_credentials", fake_get_credentials)
+    monkeypatch.setattr(m.gmail_reconcile, "reconcile",
+                        lambda a: pytest.fail("reconcile must not run"))
+    monkeypatch.setattr(m.gmail_fetch, "fetch",
+                        lambda a, w: pytest.fail("fetch must not run"))
+
+    with pytest.raises(RuntimeError, match="needs /login-google"):
+        m.run_account("me@gmail.com")
+    assert calls == [("me@gmail.com", False)]
