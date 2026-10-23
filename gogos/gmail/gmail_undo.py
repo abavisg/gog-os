@@ -1,4 +1,4 @@
-"""Gmail undo — reverse the most recent not-yet-undone move batch into the inbox.
+"""Gmail undo: reverse the newest not-yet-undone move batch back into the inbox.
 
 Undo is the exact inverse of gmail_apply's "move": for each message that was
 moved, REMOVE the GSD/<category> label and ADD the INBOX label back. This

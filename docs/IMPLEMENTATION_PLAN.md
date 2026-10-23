@@ -79,8 +79,8 @@ one PR each, pinned parameter: auto-learn threshold N = 3 corrections.
 - **Slice 1 — `List-Unsubscribe` capture.** Headers into fetch + normalise (`unsubscribe`
   field). Headers, not body — the privacy gate is unchanged and tested.
 - **Slice 2 — `/email-undo`.** Every apply writes an inverse plan
-  (`approvals/<account>/<date>/undo.json`); undo replays it through the same gated
-  `_modify`. Test proves apply→undo is a no-op on labels.
+  (`approvals/<account>/<date>/gmail-applied-<HHMMSS>.json`); undo reverses it through
+  the inverse gate `_modify_undo`. Test proves apply→undo is a no-op on labels.
 - **Slice 3 — user rules + sender ledger.** `.core/config/gmail/rules.json` overrides
   checked before built-ins, but can never route important mail to Safe to Delete (tested).
   `sender-ledger.json` guarantees a sender never classifies two ways in a run (tested).
