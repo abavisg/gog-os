@@ -1,34 +1,37 @@
-# GogOS v2 — re-architecture proposal
+# GogOS v2: re-architecture proposal
 
-Status: **proposal, 2026-10-23**. Nothing here is built. ClientOS (`Amplivibes/client-os`,
-v1.20.2) is the reference and is not modified; only GogOS changes.
+Status: **proposal with decisions recorded, 2026-10-23**. Nothing here is built.
+ClientOS (`Amplivibes/client-os`, v1.20.2) is the reference and is not modified;
+only GogOS changes. Open questions from the first draft were settled with the owner
+on 2026-10-23 and are recorded in §12.
 
 ## 0. The one-paragraph version
 
 GogOS today is a well-engineered email pipeline (Python, 403 tests, safety gates in
 code) with nowhere to put what it learns. ClientOS is a mature knowledge system
 (markdown wiki, registers, agents by tier, a learning loop, a health check) with no
-write-back engine and no tests of its reasoning outputs. GogOS v2 keeps GogOS's
-plumbing and borrows ClientOS's shape: **Intake** (deterministic connectors and a
-single inbox) → **Intelligence** (agents + skills reasoning over a compounding
-memory, under one evidence contract) → **Execution** (gated write-back, generated
-artefacts, local state changes). A **Council** sits inside Intelligence as the
-on-demand, multi-perspective mode. Modules are **life areas**, not data sources.
+write-back engine. GogOS v2 keeps GogOS's plumbing and borrows ClientOS's shape:
+**Intake** (deterministic connectors and a single inbox) → **Intelligence** (agents
+and skills reasoning over a compounding memory, under one evidence contract) →
+**Execution** (gated write-back, generated artefacts, local state changes). A
+**Council** sits inside Intelligence as the on-demand, multi-perspective mode.
+Modules are **life areas**; executive-assistant services are **capabilities** that
+apply to every area.
 
 ## 1. What each system got right, and what the other lacks
 
 | | GogOS (keep) | ClientOS (adopt) |
 |---|---|---|
-| Fetch | Python connectors with a privacy gate in code, multi-account OAuth, pytest | Single inbox as the front door; every source lands as a dated markdown digest |
+| Fetch | Privacy gate in code, multi-account, pytest | Single inbox as the front door; every source lands as a dated markdown digest; `gog` CLI with keyring tokens and a runtime read-only guard |
 | Reasoning | Deterministic classifier (zero tokens, reproducible); injection-hardened skills | Agents by model tier; skills never run directly; one evidence contract applied everywhere |
-| Memory | — (none: reports are written and never read back) | Wiki (timeless facts) + registers (stateful items with lifecycle) + dated observations; `[[wikilinks]]`; front matter schemas |
-| Write-back | Gated apply engine, inverse plan + undo, never-delete invariant, source-scan tests | — (read-only by design; no engine) |
+| Memory | none (reports are written and never read back) | Wiki (timeless facts) + registers (stateful items with lifecycle) + dated observations; `[[wikilinks]]`; front matter schemas |
+| Write-back | Gated apply engine, inverse plan + undo, never-delete invariant, source-scan tests | none (read-only by design) |
 | Automation | launchd fetch, SessionStart nudge | Reactive / proactive / ad hoc modes; fetch on a timer, LLM processing on demand |
 | Governance | CLAUDE.md principles | `/learn` + LEARNINGS.md (record → propose → approve), health check, versioned releases + migrations, deny/ask/allow permission posture |
-| Owner model | implicit | `profile/` (ExecutiveOS): how the owner thinks and wants to be challenged, claims marked provisional until confirmed |
+| Owner model | implicit | `profile/`: how the owner thinks and wants to be challenged, claims provisional until confirmed |
 
-Two things ClientOS explicitly rejected that GogOS v2 also should not do: a separate
-`intelligence/` directory tree (layers are *responsibilities*, folders follow the
+Two things ClientOS explicitly rejected that GogOS v2 also does not do: a separate
+`intelligence/` directory tree (layers are *responsibilities*; folders follow the
 data's lifecycle), and self-modifying prompts (learning is recorded and proposed,
 never auto-applied).
 
@@ -43,253 +46,300 @@ never auto-applied).
                                             └────── feedback: /learn ────────┘
 ```
 
-**Intake** owns: authentication, fetching, normalising, the privacy gate, dedup
-ledgers, caps, and writing one digest per source per run into `life/inbox/`. No LLM
-in this path, ever. Python, tested. Today's `gmail_fetch/normalise` and
-`calendar_fetch/normalise` are already this; they gain a markdown digest writer.
+**Intake** owns authentication, fetching, dedup ledgers, caps, and writing one digest
+per source per run into `life/inbox/`. No LLM in this path, ever. Deterministic,
+tested. Connectors are the ClientOS Gmail and Calendar connectors (via `gog`),
+adopted as they stand, plus `/log` for manual capture.
 
-**Intelligence** owns: turning digests into memory (`/process-inbox`), producing
+**Intelligence** owns turning digests into memory (`/process-inbox`), producing
 briefs and reviews (`/start-day`, `/end-day`, `/weekly-review`), ranking
 (`/prioritise`), and on-demand thinking (`/council`, `/brainstorm`). It reasons
 *only* over what is already in the repo. Three standing agents by tier (Opus /
 Sonnet / Haiku), skills invoked only through agents or commands, one rules file.
-The deterministic email classifier stays here as the zero-token first pass; the LLM
-handles only what rules cannot (the Review bucket, free text, transcripts).
+The deterministic email classifier stays as the zero-token first pass; the LLM
+handles only what rules cannot (the Review bucket, free text, bodies).
 
-**Execution** owns three distinct kinds of action, with different gates:
+**Execution** owns three kinds of action, with different gates:
 
 | Kind | Example | Gate |
 |---|---|---|
-| External write-back | Gmail label+archive, calendar write, send, post | Two-step approval file, inverse plan, undo. Existing engine, unchanged. |
-| Artefact | Morning brief, weekly review, a strategy note, a council verdict | None (local file), but every artefact cites its inputs |
-| Local state | Journal entry, register item status, commitment kept/missed | None, but append-only or history-preserving, and indexed deterministically |
+| External write-back | Gmail label + archive, later calendar writes | Two-step approval file, inverse plan, undo. Existing engine, re-pointed at `gog`. |
+| Artefact | Morning brief, weekly review, a council note, a nutrition plan | None (local file), but every artefact cites its inputs |
+| Local state | Journal entry, register status, commitment kept or missed | None, but append-only or history-preserving, and indexed deterministically |
 
-## 3. Memory — the part GogOS is missing
+## 3. Memory: the part GogOS is missing
 
-This is the substrate that makes the loop compound. Three stores, each with a
-deterministic index script and no LLM in the indexer:
+Three stores, each with a deterministic index script and no LLM in the indexer:
 
-- **`life/wiki/<area>/<subject>.md`** — timeless facts. "What's true." One subject
-  per page, `confidence:` honest, `[[wikilinks]]`, provenance line.
-- **`life/registers/<kind>/<slug>.md`** — stateful items with a lifecycle. "What needs
-  attention and where it stands." Kinds: `goals`, `commitments`, `decisions`,
-  `risks`. Base schema (`status`, `review_by`, `area`, `source`, `related`) plus 2–3
-  fields per kind. This absorbs the goals/commitments prototype: a goal is a
-  register item (`kind: outcome|habit`, `priority`), a commitment is a register item
-  with `due` and `goal`. Status changes append to a `## History` section, never
-  overwrite.
-- **`life/journal/YYYY-MM-DD.jsonl`** — append-only events. "What happened." Written
+- **`life/wiki/<area>/<subject>.md`**: timeless facts. "What's true." One subject per
+  page, `confidence:` honest, `[[wikilinks]]`, provenance line, never a copied email
+  body. `life/wiki/people/<name>.md` is the substrate for meeting prep, occasions
+  and last-contact; it is not an area and has no weekly section.
+- **`life/registers/<kind>/<slug>.md`**: stateful items with a lifecycle. "What needs
+  attention and where it stands." Base schema (`status`, `review_by`, `area`,
+  `source`, `related`, `sensitivity` optional) plus two or three fields per kind.
+  Status changes append to a `## History` section, never overwrite.
+- **`life/journal/YYYY-MM-DD.jsonl`**: append-only events. "What happened." Written
   by `/log`, by Execution (every apply, every artefact, every register change), and
-  by hooks. This is what `/end-day` and `/weekly-review` read. It replaces the
-  earlier TaskOS JSONL plan and ActivityOS in one primitive.
+  by hooks. `/end-day` and `/weekly-review` read it.
 
-Claude Code's task list (kanban) becomes a *projection* of open `commitments`,
-synced and reconciled exactly as the Phase 5 plan described; the register is the
-truth.
+Register kinds, each an executive-assistant service built once and tagged by area:
 
-## 4. Modules are life areas
-
-Rename from data sources to areas. Each area is a wiki section, a tag on register
-items and journal events, a section in the briefs, and an owner of zero or more
-intake sources. Proposed starting set, from what the configs already reveal
-(finance feeds, family/school in the rubric, health, learning tracks, content):
-
-| Area | Intake sources (now / later) | What the brief surfaces |
+| Kind | Service it implements | Fed by |
 |---|---|---|
-| `work` | gmail (work account), calendar, later Slack/Linear via ClientOS pattern | actions, meetings needing prep, commitments due |
-| `family` | gmail (personal), calendar, WhatsApp export | school/admin actions, events, commitments |
-| `health` | manual `/log workout`, later Apple Health export | habit goals vs. target, streaks, at-risk |
-| `finance` | gmail (bank/insurer senders), later news feeds | bills/renewals (Action), market signals |
-| `learning` | manual `/log learning`, later feeds | track progress, idle tracks |
-| `content` | manual `/log content`, later LinkedIn/Substack bridge | pipeline state, commitments |
+| `goals` | direction per area; habit goals carry `kind: habit`, `target_per_week` | you |
+| `commitments` | "you said you'd…", with `due` and optional `goal` | you, `/end-day`, process-inbox |
+| `waiting` | follow-ups owed *to* you | sent mail, `/log waiting` |
+| `renewals` | expiries and renewals, `review_by` ahead of the date | the classifier's financial / civic / insurer rules, you |
+| `occasions` | birthdays, anniversaries, dated gestures | `people/` wiki |
+| `decisions` | what was decided, confidence at the time, `review_by`, `outcome` | council, you |
+| `parked` | "not now" with a revisit date | `/brainstorm`, you |
 
-`.core/config/modules/registry.json` becomes `life/areas.json` (or front matter in
-`me/`) and is actually read: by the health check, the briefs, and `/process-inbox`
-routing. Drop the `XOS` suffixes in docs to match the code.
+This absorbs `prototypes/goals_store/` (goals + commitments) and the Phase 5 TaskOS
+plan. Claude Code's task list (kanban) becomes a *projection* of open commitments,
+synced and reconciled as that plan described; the register is the truth.
+
+## 4. The grid: areas × services
+
+Areas are rows. Services are columns. Every cell is meaningful ("renewals in Home",
+"commitments in Wellness"), which is why services are capabilities, not verticals,
+and why **Plan is a command, not a place**: `/start-day` reads the whole grid and the
+prioritisation skill collapses it to the five things that need you today.
+
+### Areas (decided 2026-10-23)
+
+| Area | Covers | Weekly question | Intake |
+|---|---|---|---|
+| **Wellness** | health, fitness, nutrition, sleep | Am I keeping the habits, and is anything trending wrong? | `/log workout\|sleep\|weight\|energy\|meal`; Apple Health export later, only once logging has held |
+| **Finance** | budgeting, cash flow, savings, investments, retirement, renewals | What's due, what renewed silently, how are positions? | bank / insurer senders (already classified), you; feeds later |
+| **Growth** | learning, skills, reading | Which tracks moved, which stalled, what did I learn? | `/log learning`, reading list |
+| **Family** | partner, children, school, pets | What's coming, what did I promise, what needs a parent decision? | personal Gmail, calendar, WhatsApp export |
+| **Home** | house, utilities, insurance, car, pool, documents | What's expiring, broken, or about to cost money? | Gmail (civic / financial rules), calendar, you |
+| **Work** | *your obligations only*: commitments, meetings, waiting-ons | What needs me, what am I waiting on? | work Gmail, calendar, ClientOS bridge (§10) |
+
+Not areas: **People** (the `people/` wiki, serving prep and occasions); **Two
+countries** (a tag on Home and Finance items); **Mobility** (Home); **Voice /
+content** (parked: most output relates to the fractional business, which is
+FractionalOS territory); **Self / direction** (`me/`, the Steward seat, and what
+`/weekly-review` answers by comparing the journal against goals).
+
+### Workspaces
+
+A piece of thinking in progress lives in `life/workspaces/<slug>/` (ClientOS's
+pattern): a nutrition plan for a child, a car lease-vs-buy decision, pool
+maintenance research. Disposable; the residue is not. Bring a task into GogOS when
+**its outcome produces a recurring obligation or a decision you'll want to
+remember**; a one-off answer can stay wherever you asked it.
 
 ## 5. Directory layout
 
 ```
 CLAUDE.md                     routing contract (short; points at the layers)
-me/                           the owner: profile.md (how I think, want to be challenged,
-                              voice), areas.json (life areas + priorities). Tracked.
-gogos/                        Python. Intake + Execution engines. Tested.
-  intake/    gmail/ calendar/ journal/ (later: health/ news/ whatsapp/)
-  execution/ gmail_apply.py gmail_undo.py (later: calendar_write.py)
-  core/      paths.py accounts.py auth/ journal.py registers.py (index) digests.py
-.claude/
-  rules/     reasoning-and-evidence-contract.md   (adapted from ClientOS, personal)
-  agents/    chief-of-staff.md (opus) analyst.md (sonnet) gardener.md (haiku)
-             council-chair.md (opus) + council perspectives (see §7)
-  skills/    email-triage calendar-brief daily-brief reflection prioritisation
-             wiki-update register-update council-position council-synthesis
+me/                           TRACKED. profile.md (how I think, how to challenge me, voice;
+                              claims provisional until confirmed), areas.json, themes.md
+gogos/                        TRACKED. Python. Intake + Execution engines. Tested.
+  intake/    gmail/ calendar/ journal/ clientos/ (later: health/ whatsapp/)
+  execution/ gmail_apply.py gmail_undo.py (later: calendar_apply.py)
+  core/      paths.py journal.py registers.py digests.py
+.claude/                      TRACKED.
+  rules/     reasoning-and-evidence-contract.md (adapted from ClientOS, personal)
+  agents/    chief-of-staff (opus) analyst (sonnet) gardener (haiku)
+             council-chair (opus) council-{strategist,skeptic,operator,steward,historian} (sonnet)
+  skills/    triage calendar-brief daily-brief reflection prioritisation wiki-update
+             register-update meeting-prep council-position council-synthesis
   commands/  start-day end-day weekly-review process-inbox sync log
              council brainstorm prioritise email-apply email-undo learn health
-  scripts/   health-check.sh registers-index.sh journal-index.sh
-  settings.json                tracked deny/ask/allow posture
-life/                         LOCAL-ONLY (one .gitignore rule). The memory.
-  inbox/     digests from connectors + anything dropped by hand
-  wiki/      <area>/<subject>.md
-  registers/ goals/ commitments/ decisions/ risks/  (+ _index.md each)
-  journal/   YYYY-MM-DD.jsonl
-  workspaces/<slug>/           a piece of thinking in progress (council notes live here)
-  reports/   start-day/ end-day/ weekly/            dated + latest-*
-.core/                        LOCAL-ONLY machine plumbing, as today
+  scripts/   health-check.sh registers-index.sh journal-index.sh last-contact.sh
+  settings.json                tracked deny / ask / allow posture
+life/                         the memory
+  inbox/     GITIGNORED. digests from connectors (may contain mail bodies) + drops
+  wiki/      TRACKED.  <area>/<subject>.md, people/<name>.md
+  registers/ TRACKED.  goals/ commitments/ waiting/ renewals/ occasions/ decisions/ parked/
+  journal/   TRACKED.  YYYY-MM-DD.jsonl
+  workspaces/TRACKED.  <slug>/
+  reports/   TRACKED.  start-day/ end-day/ weekly/   (dated + latest-*)
+.core/                        GITIGNORED. machine plumbing
   config/    accounts.json gmail/ calendar/
-  storage/   raw/slim JSON, approvals/, auth/, ledgers
+  storage/   raw/slim JSON, approvals/, ledgers
 docs/        ARCHITECTURE.md LEARNINGS.md CHANGELOG.md
 ```
 
-Two local-only trees on purpose: `life/` is human-readable knowledge you would
-grieve losing; `.core/storage/` is machine state you could regenerate. Different
-backup posture, same privacy boundary.
+**Decoupling, as three checks the health check runs:** the system (`gogos/`,
+`.claude/`, `docs/`) contains no personal fact (could it ship verbatim to someone
+else?); the system runs against an empty `life/` and `me/` (packaging smoke test);
+nothing under `life/inbox/` or `.core/` is ever tracked (assertion, not convention).
+`life/` can later become its own nested private repo without touching the system.
 
-## 6. The loops (reactive, proactive, ad hoc)
+## 6. The loops
 
 | Mode | Trigger | What runs | LLM? |
 |---|---|---|---|
-| **Reactive** | `/sync [--source …]` or a digest dropped in `life/inbox/` | connectors (fetch) → `/process-inbox` (file, distil to wiki, promote register items, write journal events) | fetch: no · process: yes (Haiku files, Sonnet judges) |
+| **Reactive** | `/sync [--source …]` or a file dropped in `life/inbox/` | connectors (fetch) → `/process-inbox` (file, distil to wiki, promote register items, write journal events) | fetch: no · process: yes (Haiku files, Sonnet judges) |
 | **Proactive** | launchd at ~07:30 | fetch only, zero LLM, leaves digests in the inbox; one macOS notification | no |
 | | SessionStart hook | one-line nudge with counts; never runs the pipeline | no |
-| | optional cloud scheduled task | ping only ("3 actions, 2 commitments due"); never the system of record | yes, but reads nothing private beyond counts |
-| **Ad hoc** | `/start-day` | process-inbox if needed → brief across areas: attention items, schedule, commitments due, habits at risk, risks overdue | yes (Sonnet) |
-| | `/log <type> <text>` | one journal event | no |
-| | `/end-day` | journal + brief + registers → kept/slipped/decisions/tomorrow seed; updates commitment statuses on confirmation | yes (Sonnet) |
-| | `/weekly-review` | the ClientOS weekly-brief pattern: diff against the previous review, decisions due for review carried forward until resolved, "what we can't see" always present | yes (Sonnet, escalates to Opus for judgement) |
-| | `/email-apply`, `/email-undo`, `/email-loop` | unchanged gated engine | no |
+| | optional cloud scheduled task | a ping with counts only; never the system of record | yes, but sees only counts |
+| **Ad hoc** | `/start-day` | process-inbox if needed → the grid → prioritisation → one screen: needs you, schedule, commitments due, waiting-ons overdue, habits at risk, renewals near | yes (Sonnet) |
+| | `/log <type> <text>` | one journal event; also opens a `waiting` or `commitment` item when the type says so | no |
+| | `/end-day` | journal + brief + registers → kept / slipped / decisions / tomorrow seed; names slipped items without judgement | yes (Sonnet) |
+| | `/weekly-review` | the ClientOS weekly-brief pattern: diff against the previous review, decisions due for review carried forward until resolved, drift against `me/themes.md`, "what we can't see" always present; Wellness before output | yes (Sonnet, escalates to Opus) |
+| | `/email-apply`, `/email-undo`, `/email-loop` | the gated engine, now via `gog` | no |
 | | `/council`, `/brainstorm` | §7 | yes |
 
-The rule from ClientOS holds: **no LLM in the fetch path, and processing is never
-scheduled** — knowledge is not rewritten without a human in the session. `/loop`
-can drive a self-paced in-session cadence (e.g. re-run `/sync` every 30 minutes
-during a working block) without changing that rule.
+No LLM in the fetch path, and processing is never scheduled: knowledge is not
+rewritten without a human in the session. `/loop` can drive an in-session cadence
+without changing that rule.
 
 ## 7. The Council
 
-**What it is.** An on-demand mode of the Intelligence layer for questions that
-deserve more than one lens: a decision you are weighing, an idea you want stress-
-tested, a plan you want attacked before you commit. Not a daily tool; a deliberate one.
+**When.** A decision you keep deferring; a plan before you commit money, time or a
+relationship to it; an idea you suspect you like too much. Not for "what should I do
+today". Expect four to six model calls; it is deliberately more expensive than a
+normal command.
 
-**What it is not.** Not fake experts, not consensus theatre, and not a replacement
-for the standing agents. Perspectives are *lenses on the same evidence*, and the
-output keeps disagreements visible.
+**Seats.** Each is a `.claude/agents/council-<seat>.md` on Sonnet with Read / Glob /
+Grep only (seats cannot write), one fixed mandate, one required output shape. The
+Chair is Opus and is the only writer.
 
-**Shape.**
+| Seat | Mandate | Reads | Guards against |
+|---|---|---|---|
+| **Strategist** | second-order effects, optionality, what this closes off | goals, area wiki | the plan that solves today and costs next year |
+| **Skeptic** | the strongest case against; what would have to be true; the assumption most likely false | the brief and its cited evidence | motivated reasoning |
+| **Operator** | what it costs to run, what breaks first, what the first two weeks look like | journal, commitments | plans that assume a version of you with more time |
+| **Steward** | argues only from your stated goals, themes and named failure modes | `me/`, goals | drift from what you said you wanted |
+| **Historian** | "we have been here before": prior decisions, their recorded confidence and outcome; journal patterns | decisions, weekly reviews | repeating a decision whose last outcome was `did-not-help` or `not-reviewed` |
 
-```
-/council <question> [--seats strategist,skeptic,operator,…] [--context <workspace|area>]
-```
+Optional area seats with `--seats +finance,+wellness,+family`. The Steward states
+"reasoning from provisional claims" until `me/profile.md` has confirmed ones.
 
-1. **Frame.** The Chair (Opus) restates the question, pulls context from
-   `me/profile.md`, the relevant `life/wiki/<area>/`, open registers, and any
-   workspace named. Writes the brief all seats receive. Marks what is fact,
-   reported claim, assumption, unknown (the evidence contract).
-2. **Positions, in parallel.** Each seat is a subagent (Sonnet) with one standing
-   lens and the same brief. Default seats: **Strategist** (second-order effects,
-   optionality), **Skeptic** (what would have to be true; strongest case against),
-   **Operator** (what it costs to run; what breaks first), **Steward** (the owner's
-   stated goals and failure modes from `me/profile.md`; says when the plan contradicts
-   them). Optional seats by area: **Finance**, **Health**, **Family**. Each returns:
-   position, evidence relied on, the assumption it would most want checked, and a
-   confidence with a reason.
-3. **Cross-examination.** Each seat sees the others' positions once and may revise
-   or sharpen its disagreement. One round only; more is theatre.
-4. **Synthesis.** The Chair writes the council note: where the seats agree, where
-   they genuinely disagree and *why* (different evidence, different values, or
-   different risk appetite), a **ranked recommendation with its trade-off**, the
-   decision required, and a review date.
-5. **Record.** The note lands in `life/workspaces/<slug>/council-YYYY-MM-DD.md`. If
-   you decide, a `registers/decisions/` item is created on confirmation with the
-   success signal, so `/weekly-review` later asks whether it helped.
+**Procedure.**
+1. **Frame** (Chair): one-sentence question; facts, reported claims, assumptions,
+   unknowns from memory; reversible or not; deadline. Your current leaning is
+   stripped from the brief.
+2. **Positions** (seats, in parallel): position in two sentences; evidence with
+   paths; the one assumption to check; confidence with a reason; what would change
+   its mind.
+3. **Cross-examination**: one round. Seats read each other and may revise.
+4. **Synthesis** (Chair): agreements; disagreements with the *cause* named (different
+   evidence, values, or risk appetite); a ranked recommendation with its trade-off;
+   the decision required; the review date; what the council could not see. The Chair
+   may not report consensus that was not there.
+5. **Record**: `life/workspaces/<slug>/council-YYYY-MM-DD.md`. On "decided", a
+   `registers/decisions/` item with the success signal and `review_by`.
 
-**`/brainstorm`** is the divergent sibling: same seats, no synthesis, no
-recommendation — a ranked list of options and the question each one raises, written
-to the workspace. Use it before a council, not instead of one.
+**`/brainstorm`**: same seats, options instead of positions; the Chair dedups and
+groups, ranks nothing, lists the question each option raises. Writes to the
+workspace; parked options go to `registers/parked/`.
 
-**Model diversity (optional, later).** The "LLM council" idea in its strongest form
-queries *different providers* and has them review each other. That is a real option
-behind a Python `gogos/council/` adapter, but it sends the brief off-machine to
-several vendors, which crosses principle 1. If added, it is opt-in per call
-(`--providers`), shows exactly what leaves the machine, and asks first. Start with
-lens diversity inside Claude; add model diversity when a council verdict is found
-wanting for lack of it, not before.
+**Model diversity** (other providers reviewing each other) is a later, opt-in option
+behind `gogos/council/`; it sends the brief off-machine, so it asks first and shows
+what leaves. Start with lens diversity inside Claude.
 
 ## 8. Governance (small, early, cheap)
 
-- **Rules.** `.claude/rules/reasoning-and-evidence-contract.md`, adapted: claim
-  types, cite sources, state confidence with a reason, rank and recommend, test
-  urgency, name the owner. Applied by every agent and skill.
-- **Learning loop.** `/learn` + `docs/LEARNINGS.md` (record → propose → approve).
-  Already proven in ClientOS; copy the mechanism verbatim.
-- **Health check.** One script that checks structure, front matter, wikilinks,
-  register schemas, the `life/` ignore rule, no credentials in the tree, and runs
-  pytest. SessionStart banner states release debt in words.
-- **Permissions.** Tracked `settings.json` with deny (credential stores, direct
-  Google API calls outside the connectors, any send) / ask (push, rm, apply) /
-  allow (reads, connectors, index scripts). ClientOS's file is a good template.
-- **Tests.** pytest stays for Python. Add a bash `run-tests.sh` for the index and
-  health scripts, building synthetic `life/` trees in a temp dir, never reading the
-  real one.
-- **Versioning.** Tag releases and keep a CHANGELOG once a second machine or a
-  second person depends on it; before that it is overhead.
+- **Rules.** `.claude/rules/reasoning-and-evidence-contract.md`, adapted from
+  ClientOS: claim types, cite sources, confidence with a reason, rank and recommend,
+  test urgency, name the owner; plus "distil the fact, never copy a body into the
+  wiki".
+- **Learning loop.** `/learn` + `docs/LEARNINGS.md`, copied from ClientOS verbatim.
+- **Health check.** Structure, front matter, wikilinks, register schemas, the three
+  decoupling checks of §5, no credentials in the tree; runs pytest and the bash
+  tests. SessionStart banner states release debt in words.
+- **Permissions.** Tracked `settings.json`: deny direct `gog`, Google API calls
+  outside the connectors, credential stores, any send; ask on push, `rm`, apply;
+  allow reads, connectors, index scripts. ClientOS's file is the template.
+- **Tests.** pytest for Python; bash `run-tests.sh` for scripts, building synthetic
+  `life/` trees in a temp dir.
+- **Versioning.** Tag and changelog once a second machine depends on it.
 
-## 9. What changes for the existing code
+## 9. Google access: adopt the ClientOS connectors, keep the gate (decided)
 
-| Today | v2 |
+The ClientOS Gmail and Calendar connectors (`gog` CLI) replace GogOS's own OAuth and
+Python Google client for reads. The apply engine is re-pointed at
+`gog gmail batch modify <id> --add-label 'GSD/<Category>' --remove-label INBOX`.
+Verified in gog's docs: that command exists; `--readonly` is a **runtime guard
+independent of token scope** (rejects mutating HTTP methods before dispatch);
+`--gmail-no-send` blocks sends; `--enable-commands-exact` restricts subcommands;
+tokens live in the platform keyring.
+
+Security posture, all parts required together:
+
+1. **The never-delete invariant lives in GogOS code, not in the scope.** `gmail.modify`
+   permits trash. The write-capable account is used by exactly one path,
+   `gogos/execution/gmail_apply.py`, which still runs `_assert_safe` and the
+   approval-file check, then shells out with
+   `--enable-commands-exact gmail.batch.modify --gmail-no-send`.
+2. **Every read path passes `--readonly`**, so the runtime guard protects connectors
+   and the scheduled job even though the token could write.
+3. **`settings.json` denies direct `gog`** to the assistant; only the connector scripts
+   and the apply engine are allowed. ClientOS's settings already deny `gog` in that
+   repo, so a session there cannot write to this mail either.
+4. **Scope is `gmail.modify`**, never `mail.google.com` (permanent delete) and never
+   `gmail.send`. Calendar edit, when wanted, follows the same pattern with a gated
+   `calendar_apply.py` and an inverse plan that stores prior state.
+5. **Two tokens if `gog` allows it** (read-only for connectors, modify for the engine),
+   so a compromised read path cannot write. Unverified: whether one address can hold
+   two credential sets. Test on the Mac; fall back to one modify token plus 1 to 4.
+6. **Bodies.** The connector writes up to 3,000 characters of body per message into
+   the digest. Hence `life/inbox/` is gitignored, digests are deleted after
+   processing, and the rules file forbids copying a body into the wiki. The
+   injection surface widens from subjects to bodies; skills treat mail as data and
+   the deny rules mean an injected instruction cannot reach a write.
+7. The 2026-10-18 drafts fix (unsent drafts filed as sent) comes with the connector;
+   keep its tests.
+
+Side effect: the "scheduled run hangs on interactive OAuth" bug disappears with the
+Python client.
+
+## 10. The ClientOS bridge (design deferred to the end of the build)
+
+ClientOS owns the client's knowledge; GogOS owns your obligations. GogOS is the
+planner because only it sees all of your time. A read-only connector per ClientOS
+instance writes `life/inbox/clientos-<slug>-<date>.md`: your open actions, today's
+meetings with a prep flag, decisions awaiting you, each with a reference (path and
+id in that instance) and a one-line title. **Titles may be kept** in GogOS's journal
+and commitments (decided); client facts beyond the title stay in the instance, and
+the brief says "open in `<slug>-os`" when context is needed. Work mail in the
+personal inbox is tagged `area: work` and treated the same way. Detailed design is
+the last slice, once the rest of the grid is running.
+
+## 11. Build order (one small PR per slice)
+
+0. **ADR.** Turn this proposal into `docs/ARCHITECTURE.md` v2.
+1. **Known defects and CI.** pyproject / egg-info, per-batch applied record, one
+   `today()`. Half a day.
+2. **Memory substrate.** `life/` skeleton with the gitignore rules, `me/profile.md`
+   (provisional claims, validation log), `me/areas.json`, `me/themes.md`, register
+   base schema + `registers-index`, `journal.py` + `/log`. Tests. This slice changes
+   the system's nature.
+3. **Intake via `gog`.** Copy the ClientOS Gmail and Calendar connectors; `/sync`;
+   launchd fetch-only job; apply engine re-pointed at `gog batch modify` behind the
+   existing gate; settings.json posture. Remove the Python Google client.
+4. **Intelligence core.** Rules file, three agents, `wiki-update`, `register-update`,
+   `/process-inbox`. First `life/wiki/` pages.
+5. **The daily loop.** `/start-day` over the grid, `/end-day`, `/weekly-review` with
+   decision follow-through and theme drift.
+6. **Wellness first vertical.** Five `/log` types, two habit goals, a Wellness section
+   first in the weekly review. No Apple Health until the logging habit has held.
+7. **Council.** Chair + five seats, `/council`, `/brainstorm`, `parked` register,
+   decision promotion on confirmation.
+8. **Governance.** `/learn`, health check with the decoupling checks, bash tests.
+9. **Home and Family services.** Renewals register fed by the classifier; occasions
+   from `people/`; last-contact script; workspace template.
+10. **ClientOS bridge** (§10).
+11. **Further intake, each earned by a real need**: Apple Health export, WhatsApp,
+    finance feeds.
+
+## 12. Decisions recorded (2026-10-23)
+
+| Question | Decision |
 |---|---|
-| `gogos/gmail/gmail_fetch,normalise` | `gogos/intake/gmail/` + a digest writer (`life/inbox/gmail-<account>-<date>.md`, metadata + snippet only — the privacy gate is unchanged) |
-| `gogos/gmail/gmail_classify,rules,ledger,reconcile` | unchanged, Intelligence first pass; its output is also written into the digest so the Gardener never re-classifies what a rule decided |
-| `gogos/gmail/gmail_apply,undo,loop` | `gogos/execution/` unchanged; applies also append a journal event; per-batch applied records (fix the overwrite bug) |
-| `gogos/calendar/*` | `gogos/intake/calendar/` + digest writer; the calendar-brief skill reads the digest |
-| `gogos/system/start_day.py` | stays as the deterministic assembler; the `/start-day` command adds the Intelligence pass over `life/` |
-| `email-triage` skill (LLM classifier) | retired; `/email-report` uses the deterministic classifier like every other path |
-| `daily-brief`, `reflection-coach`, `news-curator` stubs | rewritten with inputs, output schema, injection rule, in the shape of `calendar-brief` |
-| `prototypes/goals_store/` | absorbed into `registers/goals` + `registers/commitments`; delete |
-| `.core/config/modules/registry.json` | `me/areas.json`, read by health check and briefs |
-| `docs/IMPLEMENTATION_PLAN.md` Phase 5–9 | replaced by §10 |
-
-Auth stays GogOS's own OAuth (it needs `gmail.modify` for the apply engine and has
-multi-account tests); ClientOS's `gog` CLI is read-only and would mean two auth
-paths. Revisit only if a read-only-only deployment appears.
-
-## 10. Build order (one small PR per slice)
-
-0. **ADR.** Turn this proposal into `docs/ARCHITECTURE.md` v2 after review. Decide
-   the open questions in §11.
-1. **Fix the known defects first** (pyproject/egg-info, per-batch applied record,
-   non-interactive auth for scheduled runs, one `today()`). Add CI. Half a day.
-2. **Memory substrate.** `life/` skeleton, `me/profile.md` (provisional claims,
-   validation log), register base schema + `registers-index`, `journal.py` + `/log`.
-   Tests. This is the slice that changes the system's nature.
-3. **Intake → inbox.** Digest writers for gmail and calendar; `/sync`; launchd
-   fetch-only job replaces the current scheduler's classify+report.
-4. **Intelligence core.** Rules file, three agents, `wiki-update` and
-   `register-update` skills, `/process-inbox`. First real `life/wiki/` pages.
-5. **The daily loop.** `/start-day` over memory, `/end-day`, `/weekly-review`.
-   Decisions register with `review_by` and carried-forward reviews.
-6. **Council.** Chair + four default seats, `/council`, `/brainstorm`, council note
-   template, decision promotion on confirmation.
-7. **Governance.** `/learn`, health check, permissions posture, bash tests.
-8. **New intake per area**, each earned by a real need: health export, finance
-   senders as their own digest, news feeds, WhatsApp.
-
-Slices 2–5 are the executive-assistant core; 6 is the thing you asked for and
-depends on 2 (it needs memory to be useful); 7 is cheap and can slot anywhere.
-
-## 11. Open questions for you
-
-1. **Tracked vs local for `me/`.** ClientOS tracks `profile/` so every instance
-   knows the owner. GogOS has one instance. Tracking it is convenient for a second
-   machine and risky if the repo is ever public. Recommendation: track it, keep the
-   repo private, and put nothing in it you would not put in a CV.
-2. **Email bodies.** ClientOS ingests bodies (capped, quoted history stripped)
-   because commitments live in bodies. GogOS has a hard metadata-only gate.
-   Keep the gate (recommended for personal mail, where the classifier does the job)
-   or allow bodies for an allow-listed set of senders/threads, written only to
-   `life/inbox/` and never to `.core/storage/`? This is the single biggest privacy
-   decision in v2 and should be an ADR either way.
-3. **Council seats.** Are the four defaults the right lenses for you? The Steward
-   seat only works once `me/profile.md` has confirmed claims; until then it reasons
-   from hypotheses and says so.
-4. **Area set.** Is the table in §4 the right first cut, and which one is *not* a
-   module (something you track but do not want the system to brief you on)?
+| Track `me/` and `life/`? | Yes, everything in git in one private repo, provided the system stays decoupled (§5 checks). `life/inbox/` and `.core/` are the gitignored exceptions. |
+| Email bodies and Google access | Adopt the ClientOS `gog` connectors including bodies; edit access via `gmail.modify` behind the existing gate (§9). |
+| Council seats | Strategist, Skeptic, Operator, Steward, Historian; optional area seats. |
+| Areas | Wellness · Finance · Growth · Family (incl. pets) · Home (incl. car, pool, documents) · Work (thin, bridged). |
+| EA services | Capabilities (registers, skills, commands), not verticals. "Plan" is `/start-day`. |
+| People | The `people/` wiki as substrate for prep and occasions; no area, no weekly section. |
+| Voice / content | Parked; belongs with the fractional business (FractionalOS). |
+| Isolated research tasks | Workspaces, when the outcome leaves a recurring obligation or a decision; otherwise stay elsewhere. |
+| ClientOS bridge | Titles may be kept in GogOS; detailed design is the last slice. |
+| First vertical | Wellness. |
