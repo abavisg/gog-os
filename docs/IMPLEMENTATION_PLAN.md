@@ -112,20 +112,47 @@ Local-first task store: no external service, no write-back gate needed (all data
 local). Follows the module shape — `add` / `list` / `update` functions + `__main__` CLI,
 each tested — and the storage convention (dated file **and** a `latest-*` alias).
 
+**Source-of-truth decision (2026-07-02):** TaskOS owns the ledger; Claude Code's task
+list (kanban) is a synced *projection*, never the store. Claude Code tasks live at
+`~/.claude/tasks/<list-id>/` as one JSON file per task
+(`{id, subject, description, status, blocks, blockedBy, metadata}`) — no history, no
+first-class due/tags, `deleted` hard-removes the file, and the format is internal to
+Claude Code. Every GogOS principle (append-only, audited, citable, stable schema,
+storage under `.core/storage`) therefore points at the JSONL store below; the kanban
+gets a sync + reconcile loop, same shape as the Gmail reconcile.
+
 Modules:
 - `gogos/tasks/task_store.py` — the store. A task is `{id, title, status, created_utc,
   updated_utc, due, tags, history[]}`; status ∈ `open | done | dropped`. Append-safe
   creation (new task never rewrites existing ones); every status change appends to
   `history[]` with a UTC timestamp rather than overwriting — status updates preserve
-  history. Tasks persist to `.core/storage/tasks/<account-or-local>/tasks.jsonl`
+  history. Tasks persist to `.core/storage/tasks/local/tasks.jsonl`
   (append-only) with a derived `latest-open.json` slim projection for consumers.
+  Tasks are not account-scoped (single `local` scope; no alias resolution).
 - `gogos/tasks/task_report.py` — renders today's / open tasks to Markdown (mirrors the
   existing `*_report.py` shape). No skill needed for the MVP — deterministic listing.
+- `gogos/tasks/task_kanban.py` — sync + reconcile with the Claude Code task list.
+  Sync: push open tasks to the named list dir (`CLAUDE_CODE_TASK_LIST_ID=gogos`,
+  set in project settings so every session shares one board), stamping the GogOS
+  task id into each task's `metadata` for round-tripping. Reconcile: read the list
+  dir back; a task moved to `completed` on the kanban becomes a `done` status change
+  appended to `history[]` like any other. All format-drift risk is contained here —
+  if Claude Code's internal format shifts, only this module changes.
 
 Commands:
 - `/task-add <title> [--due YYYY-MM-DD] [--tag ...]` — append a new open task.
 - `/tasks-today` — list open tasks (due today or overdue first, then undated).
 - `/task-done <id>` — mark done; appends to history, refreshes `latest-open.json`.
+
+Slices (one small PR each, 4.6 pattern):
+1. **Store** — `task_store.py` + CLI + `latest-open.json` projection; carries the
+   append-only / history invariants and most of the tests.
+2. **Commands + report** — `task_report.py` and the three commands wired to the store.
+3. **Kanban sync + reconcile** — `task_kanban.py` + `CLAUDE_CODE_TASK_LIST_ID` in
+   project settings; kanban edits flow back into the ledger as history entries.
+4. **Email → task** — `/start-day` gains an optional "create tasks from Action emails"
+   step writing to the TaskOS store (which then syncs to the board). Read-only
+   invariant of `/start-day` w.r.t. Gmail is unchanged — tasks are local writes.
 
 Acceptance criteria:
 - Append-safe creation, status updates preserve history (nothing is ever rewritten in
@@ -133,8 +160,13 @@ Acceptance criteria:
 - `latest-open.json` slim projection stays current after every mutation, so the morning
   brief (Phase 6) can read open tasks without parsing the full JSONL.
 - Timestamps stored UTC, rendered local at report time (per storage conventions).
+- Kanban is derived state: deleting the Claude Code list dir loses nothing — a
+  fresh sync rebuilds it from the ledger (tested).
+- Reconcile never invents tasks: kanban entries without a GogOS id in `metadata`
+  are surfaced in the report as "inbox from kanban" candidates, not silently imported.
 - Tests under `tests/test_tasks_*.py` cover: append-only creation, history preservation
-  on `done`/`dropped`, and the `latest-open.json` projection.
+  on `done`/`dropped`, the `latest-open.json` projection, sync idempotence, and
+  reconcile of a kanban-side completion.
 
 ### Phase 6 — BriefingOS MVP
 

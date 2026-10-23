@@ -63,7 +63,7 @@ Pin a model in front matter **only** where a specific skill genuinely needs it:
 | Normal implementation and reasoning | *(omit — Sonnet default)* |
 | Report formatting / simple summaries | Haiku (e.g. `model: claude-haiku-4-5-20251001`) |
 
-**Fable is excluded** — we don't have access to it. Never select or pin a Fable model.
+**Fable is cloud-only** — use it only in cloud sessions (Claude Code on the web, e.g. for deep analysis on a pushed branch), selected per-session in the model picker. Never pin a Fable model in skill/command front matter, and never use it in local sessions.
 
 Today all five skills are normal-reasoning, so none pin a model. Add a pin only when a new skill clearly falls into the Opus or Haiku row above.
 
