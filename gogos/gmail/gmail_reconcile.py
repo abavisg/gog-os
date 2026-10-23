@@ -35,11 +35,16 @@ Privacy and safety:
   * A batch reversed by /email-undo is marked undone_at and skipped here:
     GogOS restored INBOX itself, so those are not user corrections.
 
+Every applied batch (gmail-applied-<HHMMSS>.json) is reconciled once: each
+record not yet marked reconciled_at is processed, newest first, then marked.
+The message-id keyed state still prevents double counting.
+
 Entry points:
   detect_corrections(applied, current_labels)      -> list of corrections (pure)
   record_corrections(state, corrections)           -> newly recorded (pure)
   auto_learn(state, ledger)                        -> learned entries (pure-ish)
   unsubscribe_candidates(slim, triage, state)      -> candidates (pure)
+  load_unreconciled_applied(account)               -> records to process
   reconcile(account[, service])                    -> exit code (I/O wrapper)
 
   python -m gogos.gmail.gmail_reconcile <account>
@@ -282,40 +287,48 @@ def _load_latest(account: str, kind: str, filename: str) -> dict:
     return json.loads(path.read_text())
 
 
-def load_latest_applied(account: str) -> dict:
-    """The most recent applied batch across ALL approval dates.
+def load_unreconciled_applied(account: str) -> list[dict]:
+    """Every applied batch not yet marked reconciled_at, newest first.
 
-    Unlike gmail_undo.load_applied (deliberately today-only: undo reverses the
-    batch you just applied), corrections show up days after an apply — so
-    reconcile scans approvals/<account>/<date>/ newest-first.
+    Scans approvals/<account>/<date>/ across ALL dates (corrections show up
+    days after an apply). Each record carries "_path" so reconcile can mark it.
     """
-    root = STORAGE_ROOT / "approvals" / resolve_account(account)
-    if not root.exists():
-        return {}
-    for dated in sorted(root.iterdir(), reverse=True):
-        path = dated / "gmail-applied.json"
-        if path.is_file():
-            try:
-                return json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
-                continue
-    return {}
+    from gogos.gmail import gmail_apply
+
+    return [
+        {**record, "_path": str(path)}
+        for path, record in gmail_apply.applied_records(resolve_account(account))
+        if not record.get("reconciled_at")
+    ]
+
+
+def _mark_reconciled(record: dict) -> None:
+    """Set reconciled_at on the on-disk applied record (best effort)."""
+    path = Path(record.get("_path", ""))
+    try:
+        on_disk = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return
+    on_disk["reconciled_at"] = _utcnow()
+    path.write_text(json.dumps(on_disk, indent=2))
 
 
 def reconcile(account: str, service=None) -> int:
     """Full reconcile pass: detect -> record -> learn -> candidates -> artefact."""
     account = resolve_account(account)
-    applied = load_latest_applied(account)
+    records = load_unreconciled_applied(account)
 
     state = load_state(account)
 
     new_corrections: list[dict] = []
-    if applied.get("moves") and not applied.get("undone_at"):
-        if service is None:
-            service = _service(account)
-        ids = [m["id"] for m in applied["moves"]]
-        current = fetch_current_labels(service, ids)
-        new_corrections = record_corrections(state, detect_corrections(applied, current))
+    for applied in records:
+        if applied.get("moves") and not applied.get("undone_at"):
+            if service is None:
+                service = _service(account)
+            ids = [m["id"] for m in applied["moves"]]
+            current = fetch_current_labels(service, ids)
+            new_corrections += record_corrections(
+                state, detect_corrections(applied, current))
 
     ledger = gmail_ledger.load_ledger(account)
     learned, suggestions = auto_learn(state, ledger)
@@ -327,6 +340,8 @@ def reconcile(account: str, service=None) -> int:
     candidates = unsubscribe_candidates(slim, triage, state)
 
     save_state(account, state)
+    for applied in records:
+        _mark_reconciled(applied)
 
     artefact = {
         "generated_at": _utcnow(),

@@ -98,14 +98,19 @@ def _plan(approved=True, moves=None):
 
 # --- Applied-result record (feeds /email-undo) -----------------------------
 
+def _only_applied(directory):
+    """The single per-batch applied record in `directory`."""
+    import json
+    (path,) = directory.glob("gmail-applied-*.json")
+    return json.loads(path.read_text())
+
+
 def test_apply_records_applied_result_for_undo(tmp_path, monkeypatch):
     m = _reload()
     monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
     svc = FakeService(_all_gsd_labels())
     m.apply_plan("personal", _plan(), svc)
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     assert applied["moved_ids"] == ["m1", "m2"]
     assert {mv["category"] for mv in applied["moves"]} == {"Action", "Newsletters"}
     assert {mv["label_name"] for mv in applied["moves"]} == {"GSD/Action", "GSD/Newsletters"}
@@ -129,9 +134,7 @@ def test_apply_records_only_successful_moves(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_modify", _flaky)
     result = m.apply_plan("personal", _plan(), svc)
     assert result["moved_count"] == 1 and result["failed_count"] == 1
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     assert applied["moved_ids"] == ["m1"]  # m2 excluded
 
 
@@ -299,8 +302,60 @@ def test_applied_result_keeps_sender_for_reconcile(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
     svc = FakeService(_all_gsd_labels())
     m.apply_plan("personal", _plan(), svc)
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     for mv in applied["moves"]:
         assert "from" in mv
+
+
+# --- Per-batch applied records (spec 1 item 2) -----------------------------
+
+def test_applied_record_is_named_by_utc_time_and_carries_batch_id(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    monkeypatch.setattr(m, "_utcnow",
+                        lambda: datetime(2026, 6, 29, 7, 5, 9, tzinfo=timezone.utc))
+    m.apply_plan("personal", _plan(), FakeService(_all_gsd_labels()))
+
+    import json
+    rec = json.loads((tmp_path / "gmail-applied-070509.json").read_text())
+    assert rec["batch_id"] == "gmail-applied-070509"
+    assert rec["undone_at"] is None
+    assert not (tmp_path / "gmail-applied.json").exists()
+
+
+def test_two_applies_write_two_records(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    clock = iter([datetime(2026, 6, 29, 8, 0, 0, tzinfo=timezone.utc),
+                  datetime(2026, 6, 29, 9, 0, 0, tzinfo=timezone.utc)])
+    monkeypatch.setattr(m, "_utcnow", lambda: next(clock))
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(moves=[
+        {"id": "m1", "category": "Action", "label_name": "GSD/Action"}]), svc)
+    m.apply_plan("personal", _plan(moves=[
+        {"id": "m2", "category": "Newsletters", "label_name": "GSD/Newsletters"}]), svc)
+
+    import json
+    names = sorted(p.name for p in tmp_path.glob("gmail-applied-*.json"))
+    assert names == ["gmail-applied-080000.json", "gmail-applied-090000.json"]
+    assert json.loads((tmp_path / names[0]).read_text())["moved_ids"] == ["m1"]
+    assert json.loads((tmp_path / names[1]).read_text())["moved_ids"] == ["m2"]
+
+
+def test_two_applies_in_the_same_second_never_overwrite(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    monkeypatch.setattr(m, "_utcnow",
+                        lambda: datetime(2026, 6, 29, 8, 0, 0, tzinfo=timezone.utc))
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(), svc)
+    m.apply_plan("personal", _plan(), svc)
+
+    names = sorted(p.stem for p in tmp_path.glob("gmail-applied-*.json"))
+    assert names == ["gmail-applied-080000", "gmail-applied-080000-2"]
