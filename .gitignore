@@ -9,3 +9,4 @@ __pycache__/
 .obsidian/
 credentials.json
 *token*.json
+*.egg-info/
