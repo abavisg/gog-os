@@ -23,7 +23,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from gogos.auth.accounts import resolve_account
-from gogos.paths import latest_alias, storage_path
+from gogos.paths import latest_alias, local_tz, now_utc, storage_path
 
 _LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
 _REPORT_CONFIG_PATH = Path(__file__).parents[2] / ".core/config/gmail/report.json"
@@ -41,7 +41,7 @@ _DEFAULT_EMOJI = "•"
 
 
 def _now_local() -> str:
-    return datetime.now(tz=_LOCAL_TZ).isoformat(timespec="seconds")
+    return now_utc().astimezone(local_tz()).isoformat(timespec="seconds")
 
 
 def _load_json(path: Path) -> dict:

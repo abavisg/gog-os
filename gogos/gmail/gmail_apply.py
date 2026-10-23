@@ -31,7 +31,7 @@ from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 from gogos.auth.accounts import resolve_account
-from gogos.paths import STORAGE_ROOT, latest_alias, storage_path
+from gogos.paths import STORAGE_ROOT, latest_alias, storage_path, today
 
 # The parent folder under which all destination labels live.
 _GSD_PREFIX = "GSD"
@@ -231,8 +231,7 @@ def _is_stale(date_str: str, cutoff: datetime) -> bool:
 
 
 def _approvals_dir(account: str) -> Path:
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    d = STORAGE_ROOT / "approvals" / account / date
+    d = STORAGE_ROOT / "approvals" / account / today()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
