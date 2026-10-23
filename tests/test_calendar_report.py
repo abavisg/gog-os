@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 
 def _slim_data(events: list[dict] | None = None) -> dict:

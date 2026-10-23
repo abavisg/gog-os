@@ -384,7 +384,6 @@ def test_empty_triage_io_exits_zero(tmp_path, monkeypatch):
 def test_no_gmail_api_import(tmp_path):
     """gmail_report must not import googleapiclient or any write-path Gmail module."""
     import gogos.gmail.gmail_report as m
-    import sys
     # If any google API client was imported by this module, it would be in sys.modules
     # We just verify the module itself doesn't carry a service or API object
     assert not hasattr(m, "build"), "gmail_report must not import googleapiclient.discovery.build"
@@ -419,11 +418,11 @@ def test_compact_collapses_newsletters_to_name_run():
     md = _render("compact")
     # Newsletters section should appear but not have individual → action lines
     lines = md.splitlines()
-    newsletter_idx = next((i for i, l in enumerate(lines) if "Newsletters" in l), None)
+    newsletter_idx = next((i for i, line in enumerate(lines) if "Newsletters" in line), None)
     if newsletter_idx is not None:
         # The line after the header should be a name run (no "→" per item on its own line)
         section_lines = lines[newsletter_idx + 1: newsletter_idx + 4]
-        assert not any(l.strip().startswith("→") for l in section_lines)
+        assert not any(line.strip().startswith("→") for line in section_lines)
 
 
 def test_compact_shows_arrow_action_for_action_category():
@@ -482,11 +481,11 @@ def test_summary_collapses_non_detail_categories():
     # not as an expanded bullet point with subject + arrow.
     lines = md.splitlines()
     # Find lines that are expanded bullet points (start with "•")
-    bullet_lines = [l for l in lines if l.strip().startswith("•")]
+    bullet_lines = [line for line in lines if line.strip().startswith("•")]
     # None of the bullet lines should belong to the Review category
     # (we can tell because Action items have subjects like "Meeting tomorrow" / "(no subject)")
     # The Review item has subject "Invoice #1234" — it must not appear as a bullet
-    assert not any("Invoice #1234" in l for l in bullet_lines)
+    assert not any("Invoice #1234" in line for line in bullet_lines)
 
 
 def test_summary_lists_collapsed_categories_at_footer():

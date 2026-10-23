@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
 
 
 def _raw_event(event_id: str = "e1", all_day: bool = False) -> dict:

@@ -585,7 +585,6 @@ def test_resolve_window_yesterday_returns_after_before_query():
 
 def test_resolve_window_yesterday_after_is_midnight_local():
     """after: epoch must be yesterday 00:00 in GOGOS_TIMEZONE."""
-    import time as _time
     from datetime import datetime, timedelta
 
     from gogos.paths import local_tz

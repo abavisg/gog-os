@@ -107,9 +107,10 @@ def test_expired_token_refreshed_and_rewritten(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_token_path", lambda account: token_file)
 
     with patch("gogos.auth.google_auth.Credentials.from_authorized_user_file", return_value=expired_creds), \
-         patch("gogos.auth.google_auth.Request") as mock_request:
+         patch("gogos.auth.google_auth.Request"):
         result = m.get_credentials("personal")
 
+    assert result is expired_creds
     expired_creds.refresh.assert_called_once()
     assert token_file.exists()
 
@@ -149,6 +150,7 @@ def test_missing_token_runs_flow(tmp_path, monkeypatch):
     with patch("gogos.auth.google_auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow):
         result = m.get_credentials("personal")
 
+    assert result is new_creds
     mock_flow.run_local_server.assert_called_once_with(port=0)
     assert token_file.exists()
 

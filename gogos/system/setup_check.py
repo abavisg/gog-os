@@ -70,7 +70,7 @@ def check_accounts_config() -> None:
         return
     count = len(cfg.get("aliases", {}))
     if count == 0:
-        print(f"WARNING  accounts.json  (exists but no accounts registered)")
+        print("WARNING  accounts.json  (exists but no accounts registered)")
     else:
         _ok("accounts.json", f"{count} account(s) registered")
 

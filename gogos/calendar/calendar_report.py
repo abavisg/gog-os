@@ -77,7 +77,7 @@ def render_report(
 
     lines: list[str] = []
     lines.append(f"# Calendar Brief — {account} · {period}")
-    lines.append(f"")
+    lines.append("")
     lines.append(f"_Generated: {generated_at}_  ")
     lines.append(f"_Sources: {brief_path} · {slim_path}_")
     lines.append("")
@@ -120,12 +120,12 @@ def render_report(
 
             prep = eb.get("prep", "")
             if prep:
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"**Prep:** {prep}")
 
             notes = eb.get("notes", "")
             if notes:
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"{notes}")
 
             lines.append("")
