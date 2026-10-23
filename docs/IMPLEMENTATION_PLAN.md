@@ -1,5 +1,9 @@
 # Incremental Implementation Plan
 
+> **2026-10-23: v2 re-architecture.** The NEXT section below (Phases 5–9) is superseded by
+> `docs/REARCHITECTURE-PROPOSAL.md` and the slice specs in `docs/specs/`. DONE stays accurate.
+> This file will be rewritten when spec 8 (governance) lands.
+
 ## Rule
 
 Build one module at a time. No dashboard. No write-back until read-only workflows are proven.
