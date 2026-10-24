@@ -41,8 +41,9 @@ except for checks that protect the data boundary, which are SYSTEM checks.
 
 SYSTEM checks:
 
-- S1 `.gitignore` contains `/life/inbox/` and `/.core/`; `git ls-files` shows nothing
-  under either; nothing matching `*token*`, `*.env`, `credentials*`.
+- S1 `.gitignore` contains `/life/inbox/`, `.core/storage/`, `.core/config/secrets/` and
+  `.core/config/accounts.json`; `git ls-files` shows nothing under any of them
+  (`.core/config/` is otherwise tracked, decoupled config); nothing matching `*token*`, `*.env`, `credentials*`.
 - S2 every `.claude/agents/*.md` has `name`, `description`, `model`, `tools`; no
   `.claude/skills/*/SKILL.md` has `model:`; every agent named in a command exists;
   `gardener` is the only non-council agent with Bash; council seats have no Write.

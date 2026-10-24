@@ -33,7 +33,7 @@ by kind:
 
 | Input | start-day | end-day | weekly |
 |---|---|---|---|
-| `registers/_index.json` (open items with derived values) | yes | yes | yes |
+| `registers/_index.json` (`open` items with derived values; `closed` for kept-this-week) | yes | yes | yes |
 | commitments due today / this week, overdue | yes | yes | yes |
 | waiting items overdue (asked_on older than N days, default 5) | yes | | yes |
 | renewals with `review_by` within 14 days | yes | | yes |
