@@ -116,6 +116,16 @@ feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond 
 - Hook: SessionStart runs the nudge only when `.venv/bin/python` exists, and never errors.
 - Tests passing (421/421).
 
+### v2 slice 2: memory substrate (`docs/specs/02-memory-substrate.md`)
+- Paths and skeletons: `gogos/core/paths.py` adds `LIFE_ROOT`, `ME_ROOT` and the inbox, wiki, registers, journal, workspace and reports helpers; `life/` and `me/` are tracked, `/life/inbox/` and `/.core/` are gitignored.
+- Registers: `gogos/core/registers.py` validates the seven kinds on the base front matter schema, appends `## History` lines, derives moved_count, days_overdue, renegotiate, ignored, idle and at_risk from history, and writes `registers/<kind>/_index.md` plus `registers/_index.json`.
+- Journal and `/log`: `gogos/core/journal.py` appends ULID-keyed events in one `O_APPEND` write; `/log` infers the area where the type settles it, and `waiting` and `commitment` entries create register items.
+- `me/`: `profile.md` (validation log, every row provisional), `areas.json` (the six areas) and `themes.md`, placeholders only.
+- Kanban (2b): `gogos/core/kanban.py` projects open commitments into the `gogos` Claude Code task list and reconciles board completions back as `kept`; the real task format is pinned in `tests/fixtures/kanban/`.
+- Carry-overs: `gmail_reconcile.load_recent_applied` (renamed); `prototypes/goals_store/` absorbed into `registers.derived()` and gone.
+- Docs: this entry and the CLAUDE.md pointer to `life/`, `me/` and `/log`.
+- Tests passing (569/569).
+
 ---
 
 ## NEXT
