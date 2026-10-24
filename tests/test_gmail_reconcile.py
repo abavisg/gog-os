@@ -447,3 +447,22 @@ def test_reconcile_end_to_end_writes_artefact(tmp_path, monkeypatch):
         (fake_storage_path("gmail", "me@x.com", "reconcile") / "latest-reconcile.json")
         .read_text())
     assert artefact2["new_corrections"] == []
+
+
+def test_legacy_applied_record_is_reconciled(tmp_path, monkeypatch):
+    """R2: a gmail-applied.json written before per-batch records still feeds reconcile."""
+    import json
+
+    m = _reload()
+    fake_storage_path = _reconcile_env(m, tmp_path, monkeypatch)
+    _freeze_now(monkeypatch, "2026-07-01T08:00:00+00:00")
+    d = tmp_path / "approvals" / "me@x.com" / "2026-06-30"
+    d.mkdir(parents=True)
+    (d / "gmail-applied.json").write_text(json.dumps(_applied()))  # no batch_id
+
+    assert [r["batch_id"] for r in m.load_unreconciled_applied("me@x.com")] == ["legacy"]
+    svc = FakeLabelService({"m1": ["INBOX"], "m2": ["L_DELETE"]})
+    assert m.reconcile("me@x.com", service=svc) == 0
+    artefact = json.loads((fake_storage_path("gmail", "me@x.com", "reconcile")
+                           / "latest-reconcile.json").read_text())
+    assert [c["id"] for c in artefact["new_corrections"]] == ["m1"]

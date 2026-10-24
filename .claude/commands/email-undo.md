@@ -38,7 +38,8 @@ uses). On a scope error, tell the user to run `/logout-google <account>` then
 
 A prior `/email-apply` or `/email-loop` must have written at least one
 `.core/storage/approvals/<account>/<YYYY-MM-DD>/gmail-applied-<HHMMSS>.json` (one
-per batch). Undo picks the newest record whose `undone_at` is null, on any date.
+per batch; a `gmail-applied.json` from before per-batch records also counts). Undo
+picks the newest record whose `undone_at` is null, on any date.
 If there is none, tell the user there is no applied batch to undo, and stop.
 
 ## Steps

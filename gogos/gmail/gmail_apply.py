@@ -55,6 +55,8 @@ _FORBIDDEN = {"TRASH", "SPAM"}
 
 # Filename prefix of per-batch applied records: gmail-applied-<HHMMSS>.json.
 _APPLIED_PREFIX = "gmail-applied-"
+# The single fixed-name record written before per-batch records existed.
+_LEGACY_APPLIED = "gmail-applied.json"
 
 
 def gsd_label_name(category: str) -> str:
@@ -291,16 +293,23 @@ def applied_records(account: str) -> list[tuple[Path, dict]]:
 
     Scans approvals/<account>/<date>/ across ALL dates, so an undo or reconcile
     after midnight still finds yesterday's batches. Unreadable files are skipped.
+    A legacy gmail-applied.json is included as batch_id "legacy", keeping its
+    undone_at if it has one, so batches applied before per-batch records stay
+    undoable and reconcilable.
     """
     root = STORAGE_ROOT / "approvals" / account
     if not root.exists():
         return []
+    files = [*root.glob(f"*/{_APPLIED_PREFIX}*.json"), *root.glob(f"*/{_LEGACY_APPLIED}")]
     records = []
-    for path in root.glob(f"*/{_APPLIED_PREFIX}*.json"):
+    for path in files:
         try:
-            records.append((path, json.loads(path.read_text())))
+            record = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):
             continue
+        if path.name == _LEGACY_APPLIED:
+            record = {"batch_id": "legacy", "undone_at": None, **record}
+        records.append((path, record))
     records.sort(key=lambda r: (r[1].get("applied_at", ""), r[0].name), reverse=True)
     return records
 

@@ -357,3 +357,50 @@ def test_two_applies_in_one_day_undo_second_then_first_reconcile_learns_both(
     # Nothing left to undo.
     with pytest.raises(FileNotFoundError):
         undo_mod.build_undo("me@x.com")
+
+
+# --- legacy gmail-applied.json (R2): batches applied before per-batch records --
+
+def _write_legacy(storage, date, applied_at, **extra):
+    import json
+
+    d = storage / "approvals" / "me@x.com" / date
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / "gmail-applied.json"
+    path.write_text(json.dumps({**_applied(), "applied_at": applied_at, **extra}))
+    return path
+
+
+def test_legacy_applied_record_is_undoable(tmp_path, monkeypatch):
+    import json
+
+    m = _reload()
+    monkeypatch.setattr(m.gmail_apply, "STORAGE_ROOT", tmp_path)
+    legacy = _write_legacy(tmp_path, "2026-06-28", "2026-06-28T08:00:00+00:00")
+
+    applied = m.load_applied("me@x.com")
+    assert applied["batch_id"] == "legacy"
+    assert applied["undone_at"] is None
+
+    plan = m.build_undo("me@x.com")
+    assert plan["batch_id"] == "legacy"
+    m.apply_undo("me@x.com", plan, FakeService(_all_gsd_labels()))
+    assert json.loads(legacy.read_text())["undone_at"]
+    with pytest.raises(FileNotFoundError):
+        m.load_applied("me@x.com")
+
+
+def test_legacy_record_keeps_its_undone_at_and_sorts_by_applied_at(tmp_path, monkeypatch):
+    m = _reload()
+    monkeypatch.setattr(m.gmail_apply, "STORAGE_ROOT", tmp_path)
+    _write_legacy(tmp_path, "2026-06-28", "2026-06-28T08:00:00+00:00",
+                  undone_at="2026-06-28T09:00:00+00:00")
+    _write_legacy(tmp_path, "2026-06-29", "2026-06-29T08:00:00+00:00")
+    _write_record(tmp_path, "2026-06-29", "070000", "2026-06-29T07:00:00+00:00")
+
+    records = m.gmail_apply.applied_records("me@x.com")
+    assert [r["applied_at"] for _, r in records] == [
+        "2026-06-29T08:00:00+00:00", "2026-06-29T07:00:00+00:00",
+        "2026-06-28T08:00:00+00:00"]
+    assert records[-1][1]["undone_at"] == "2026-06-28T09:00:00+00:00"
+    assert m.load_applied("me@x.com")["batch_id"] == "legacy"
