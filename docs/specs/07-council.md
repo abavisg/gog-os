@@ -31,11 +31,11 @@ see the owner's current leaning; the Chair strips it from the brief.
 
 | Seat | Mandate | Reads first |
 |---|---|---|
-| `council-strategist` | second-order effects, optionality, what the choice closes off | `registers/goals/`, area wiki |
+| `council-strategist` | second-order effects, optionality, what the choice closes off | `registers/goal/`, area wiki |
 | `council-skeptic` | the strongest case against; what would have to be true; the assumption most likely false | the brief and every path it cites |
 | `council-operator` | running cost, what breaks first, the first two weeks in practice | `life/journal/` last 4 weeks, open commitments |
 | `council-steward` | argues only from the owner's stated goals, themes and failure modes | `me/profile.md`, `me/themes.md`, goals |
-| `council-historian` | prior decisions, their recorded confidence and outcomes, journal patterns | `registers/decisions/`, `life/reports/weekly/` |
+| `council-historian` | prior decisions, their recorded confidence and outcomes, journal patterns | `registers/decision/`, `life/reports/weekly/` |
 
 Optional area seats `council-finance`, `council-wellness`, `council-family` share
 one template with the area substituted; created on first use of `--seats +<area>`.
@@ -89,9 +89,9 @@ Cross-examination round: each seat receives the other positions and returns eith
 
 5. **Record**. Journal `council.held` with `ref`. The command then asks: *Decided
    (create a decision item) / Park (parked item with revisit date) / Leave as a note*.
-   On "Decided": `registers/decisions/<slug>.md` with `decision_date`, `confidence`
+   On "Decided": `registers/decision/<slug>.md` with `decision_date`, `confidence`
    (the Chair's), `success_signal` (from Review point), `review_by`, `source` pointing
-   at the council note. On "Park": `registers/parked/` with `revisit_by` and `origin`.
+   at the council note. On "Park": `registers/parked/` (already singular) with `revisit_by` and `origin`.
 
 ### `/brainstorm <topic> [--seats …] [--context …]`
 

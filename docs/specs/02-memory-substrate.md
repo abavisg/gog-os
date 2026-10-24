@@ -38,7 +38,7 @@ life/
   journal/          tracked; YYYY-MM-DD.jsonl
   workspaces/       tracked
   reports/          tracked
-.core/              gitignored (already)
+.core/storage/      gitignored (already; .core/config/ stays tracked except secrets/ and accounts.json)
 ```
 
 `gogos/core/paths.py` gains `LIFE_ROOT`, `ME_ROOT`, `inbox_dir()`, `wiki_dir(area)`,
@@ -72,11 +72,13 @@ sensitivity: <optional free label, e.g. family-health; descriptive only>
 immutable; corrections are a dated `## Amendment YYYY-MM-DD` section or a superseding
 file.
 
-**profile**: `validation: provisional|confirmed`, `last_validated`, `content_approved`.
+**profile**: `validation: provisional|confirmed`, `last_validated`, `content_approved:
+YYYY-MM-DD|false`.
 
 ### Register items
 
-Path `life/registers/<kind>/<slug>.md`, slug kebab-case, never reused. Front matter:
+Path `life/registers/<kind>/<slug>.md` with the kind singular (`registers/goal/`,
+`registers/commitment/`), matching the `register:` field; slug kebab-case, never reused. Front matter:
 base schema with `type: register`, `register: <kind>` (singular), `review_by:
 YYYY-MM-DD|none`, `source: <path or [[wikilink]]>`, `related: []`, plus:
 
@@ -114,7 +116,10 @@ derived(item) -> dict                     moved_count, days_overdue, at_risk, id
 ```
 
 `_index.md` per kind: open items by `review_by` ascending, overdue flagged, then the
-rest. `_index.json`: every open item with its derived values; this is what the briefs
+rest. `_index.json`: `{generated_at, today, open: [...], closed: [...]}`; each record is
+the item's front matter plus `ref`, `slug`, `open` and `derived`. Consumers read `open`;
+`closed` is there so "kept this week" needs no markdown parsing. The kind is the
+`register` field (a goal's own `kind` is outcome or habit). This is what the briefs
 read so they never parse markdown. CLI: `python -m gogos.core.registers index|list
 <kind>|create <kind> --title … --area … [--field v]|status <path> <status>`.
 
@@ -181,7 +186,8 @@ description: two entities confirmed, both as register kinds.
 ## Acceptance criteria
 
 - [ ] `life/` and `me/` exist with the layout above; `git check-ignore life/inbox/x`
-      and `.core/x` succeed; `life/wiki/x` does not.
+      and `.core/storage/x` succeed; `life/wiki/x` and `.core/config/gmail/categories.json`
+      do not (amended 2026-10-24 after PR #17: `.core/config/` is tracked, decoupled config).
 - [ ] Creating a commitment, moving its due date twice, then marking it kept produces
       a file with four history lines and `moved_count == 2` in `_index.json`.
 - [ ] A malformed register file fails `index()` with the path and the field named.

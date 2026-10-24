@@ -39,7 +39,7 @@ no value. Area is inferred. Shorthand is accepted by the command: `/log sleep 7.
 
 ### Habit goals
 
-`registers/goals/` items with `kind: habit`, `target_per_week`, and a new field
+`registers/goal/` items with `kind: habit`, `target_per_week`, and a new field
 `counts: [log types]` naming which journal types count as "kept" for this habit
 (`["workout"]`; or `["sleep"]` with `--min-value 7`). A commitment linked to the goal
 also counts when kept. Two starter goals are created by the owner on day one (the
