@@ -66,7 +66,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from gogos.core import frontmatter, paths
+from gogos.core import frontmatter, journal, paths
 
 AREAS = ("wellness", "finance", "growth", "family", "home", "work")
 
@@ -444,6 +444,9 @@ def create(kind: str, title: str, area: str, /, **fields) -> Path:
     text = (body.strip() + "\n\n" if body.strip() else "")
     text += f"## History\n\n- {_stamp()} created\n"
     _atomic_write(path, _render(kind, meta, "\n" + text))
+    journal.append({"type": "register.created", "area": area, "text": f"{kind}: {title}",
+                    "ref": paths.rel_ref(path), "source": "registers",
+                    "meta": {"register": kind}})
     return path
 
 
@@ -458,6 +461,11 @@ def set_status(path: Path, new_status: str, note: str = "") -> bool:
         return False
     item.meta["status"] = new_status
     _save(item, f"status {old} → {new_status}" + (f" ({note})" if note else ""))
+    journal.append({"type": "register.status", "area": item.meta["area"],
+                    "text": f"{item.kind}: {item.meta['title']} {old} → {new_status}",
+                    "ref": item.ref, "source": "registers",
+                    "meta": {"register": item.kind, "from": old, "to": new_status,
+                             "note": note}})
     return True
 
 
