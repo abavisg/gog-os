@@ -280,7 +280,7 @@ def test_two_applies_in_one_day_undo_second_then_first_reconcile_learns_both(
     importlib.reload(apply_mod)
     undo_mod = _reload()
     importlib.reload(rec_mod)
-    rec_mod.resolve_account = lambda a: a
+    monkeypatch.setattr(rec_mod, "resolve_account", lambda a: a)
 
     storage = tmp_path / "storage"
     monkeypatch.setattr(apply_mod, "STORAGE_ROOT", storage)
