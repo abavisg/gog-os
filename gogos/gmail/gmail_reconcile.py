@@ -46,7 +46,7 @@ Entry points:
   record_corrections(state, corrections)           -> newly recorded (pure)
   auto_learn(state, ledger)                        -> learned entries (pure-ish)
   unsubscribe_candidates(slim, triage, state)      -> candidates (pure)
-  load_unreconciled_applied(account)               -> records to process
+  load_recent_applied(account)                     -> applied batches in the window
   reconcile(account[, service])                    -> exit code (I/O wrapper)
 
   python -m gogos.gmail.gmail_reconcile <account>
@@ -293,10 +293,10 @@ def _load_latest(account: str, kind: str, filename: str) -> dict:
     return json.loads(path.read_text())
 
 
-def load_unreconciled_applied(account: str) -> list[dict]:
-    """Every applied batch still worth checking, newest first.
+def load_recent_applied(account: str) -> list[dict]:
+    """Every recently applied batch still worth checking, newest first.
 
-    That is every record across ALL approval dates whose applied_at is within
+    "Recent" means every record across ALL approval dates whose applied_at is within
     RECONCILE_WINDOW_DAYS and which has not been undone. A batch is re-checked
     on every pass inside the window, so a manual move made days after the
     first pass is still learned; the message-id keyed state prevents double
@@ -335,7 +335,7 @@ def _mark_reconciled(record: dict) -> None:
 def reconcile(account: str, service=None) -> int:
     """Full reconcile pass: detect -> record -> learn -> candidates -> artefact."""
     account = resolve_account(account)
-    records = load_unreconciled_applied(account)
+    records = load_recent_applied(account)
 
     state = load_state(account)
 

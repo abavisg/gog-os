@@ -73,4 +73,5 @@ Today all five skills are normal-reasoning, so none pin a model. Add a pin only 
 - New modules follow the existing shape: `fetch` → `normalise` → `report`, each tested under `tests/test_<module>_*.py`.
 - Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: the v2 build slices in `docs/specs/README.md`.**
 - EmailOS end-to-end behaviour and safety invariants: `docs/EMAILOS.md`.
-- Some commands (`/morning-brief`, `/log`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules — don't assume a command means the module is built.
+- Memory (v2): `life/` holds registers, the journal, wiki, workspaces and reports (schemas in `docs/specs/02-memory-substrate.md`, code in `gogos/core/`); `me/` holds the owner profile, areas and themes. `/log` appends to the journal and creates `waiting` and `commitment` register items.
+- Some commands (`/morning-brief`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules; a command existing does not mean its module is built.
