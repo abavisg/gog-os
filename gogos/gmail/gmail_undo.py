@@ -1,4 +1,4 @@
-"""Gmail undo — reverse the most recent move batch back into the inbox.
+"""Gmail undo: reverse the newest not-yet-undone move batch back into the inbox.
 
 Undo is the exact inverse of gmail_apply's "move": for each message that was
 moved, REMOVE the GSD/<category> label and ADD the INBOX label back. This
@@ -11,24 +11,26 @@ Safety invariants (enforced in code, mirror-image of gmail_apply):
   * Undo reads the applied-result file written by gmail_apply, so it reverses
     exactly the messages that actually moved — never a proposal, never a guess.
 
+Each apply writes its own gmail-applied-<HHMMSS>.json. Undo picks the newest
+record with undone_at null across all dates, and marks only that record, so
+repeated undos walk batches back newest first (also after midnight).
+
 Entry points:
-  build_undo(account)             -> undo plan derived from latest applied result
+  build_undo(account)             -> undo plan for the newest batch not yet undone
   apply_undo(account, plan, svc)  -> result dict
 
-  python -m gogos.gmail.gmail_undo <account>          (reverse latest applied batch)
+  python -m gogos.gmail.gmail_undo <account>          (reverse newest un-undone batch)
 """
 from __future__ import annotations
 
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from gogos.auth.accounts import resolve_account
-from gogos.gmail.gmail_apply import (
-    _FORBIDDEN,
-    _approvals_dir,
-    _is_gsd_destination,
-)
+from gogos.gmail import gmail_apply
+from gogos.gmail.gmail_apply import _FORBIDDEN, _is_gsd_destination
 
 # The only label undo is ever allowed to ADD (the inverse of archive).
 _ADDABLE = {"INBOX"}
@@ -89,25 +91,33 @@ def _modify_undo(service, message_id: str,
 # ---------------------------------------------------------------------------
 
 def load_applied(account: str) -> dict:
-    """Read the latest applied-result file written by gmail_apply.apply_plan."""
+    """The newest applied batch with undone_at null, across all approval dates.
+
+    The returned record carries "_path" (where it lives) so undo can mark
+    exactly that record. Raises FileNotFoundError when nothing is left to undo.
+    """
     account = resolve_account(account)
-    path = _approvals_dir(account) / "gmail-applied.json"
-    return json.loads(path.read_text())
+    for path, record in gmail_apply.applied_records(account):
+        if record.get("undone_at") is None:
+            return {**record, "_path": str(path)}
+    raise FileNotFoundError(f"no un-undone applied batch for {account}")
 
 
-def _mark_applied_undone(account: str) -> None:
-    """Annotate the latest applied result with undone_at (best effort)."""
-    path = _approvals_dir(account) / "gmail-applied.json"
+def _mark_applied_undone(record_path: str | None) -> None:
+    """Set undone_at on the one applied record this undo reversed (best effort)."""
+    if not record_path:
+        return  # plan built from an injected record (e.g. tests): nothing on disk
+    path = Path(record_path)
     try:
         applied = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
-        return  # nothing to annotate (e.g. plan injected in tests)
+        return
     applied["undone_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(applied, indent=2))
 
 
 def build_undo(account: str, *, applied: dict | None = None) -> dict:
-    """Build an undo plan from the latest applied result. Does NOT touch Gmail."""
+    """Build an undo plan from the newest un-undone applied batch. Does NOT touch Gmail."""
     account = resolve_account(account)
     if applied is None:
         applied = load_applied(account)
@@ -120,6 +130,8 @@ def build_undo(account: str, *, applied: dict | None = None) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "account": account,
         "action": "undo-move",  # remove GSD/<category>, add INBOX
+        "batch_id": applied.get("batch_id"),
+        "applied_path": applied.get("_path"),
         "reversals": reversals,
         "categories": sorted({r["category"] for r in reversals}),
     }
@@ -166,9 +178,9 @@ def apply_undo(account: str, plan: dict, service) -> dict:
 
     # Mark the applied batch as undone: GogOS restored INBOX itself, so
     # gmail_reconcile must never read those restorations as user corrections.
-    # The plan carries the resolved account (build_undo resolved it).
+    # Only the record this plan was built from is marked.
     if reversed_ids:
-        _mark_applied_undone(plan.get("account", account))
+        _mark_applied_undone(plan.get("applied_path"))
 
     return {
         "account": account,

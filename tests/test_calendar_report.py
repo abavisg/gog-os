@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 
 def _slim_data(events: list[dict] | None = None) -> dict:
@@ -249,3 +248,12 @@ def test_report_io_missing_slim(tmp_path, monkeypatch):
     brief_path.write_text(json.dumps(_brief_data()))
     result = report("personal", brief_path, tmp_path / "missing.json")
     assert result == 1
+
+
+def test_parse_local_reads_gogos_timezone_at_call_time(monkeypatch):
+    from gogos.calendar.calendar_report import _parse_local
+
+    monkeypatch.setenv("GOGOS_TIMEZONE", "America/New_York")
+    assert _parse_local("2026-06-29T14:00:00+00:00") == "10:00"
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    assert _parse_local("2026-06-29T14:00:00+00:00") == "15:00"

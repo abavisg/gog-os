@@ -16,6 +16,9 @@ GogOS handles private email, calendar, health, learning, and personal logs. Trea
   mutations are adding `GSD/*` labels and removing `INBOX`.
 - Store raw private data under `.core/storage`, which should be gitignored.
 - Prefer generated summaries over exposing full raw email/calendar data to Claude.
+- The Gmail snippet is body-derived (up to about 100 characters). It is stored in
+  the raw and slim JSON under `.core/storage` and shown to the model; no other body
+  content is fetched or stored.
 
 ## Gitignore requirements
 

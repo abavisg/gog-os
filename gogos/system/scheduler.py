@@ -14,6 +14,10 @@ notification with the merged counts. It deliberately does NOT write the
 /start-day panel, so the SessionStart nudge still offers /start-day with this
 morning's counts. Moves stay behind /email-apply and /email-loop.
 
+The run is unattended, so it never opens a browser: start_day.run_account
+checks credentials with interactive=False and an account without a usable
+token fails fast with a /login-google message.
+
 Entry points:
   python -m gogos.system.scheduler install [--time HH:MM]
   python -m gogos.system.scheduler uninstall

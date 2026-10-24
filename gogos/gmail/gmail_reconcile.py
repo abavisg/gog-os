@@ -35,11 +35,18 @@ Privacy and safety:
   * A batch reversed by /email-undo is marked undone_at and skipped here:
     GogOS restored INBOX itself, so those are not user corrections.
 
+Every applied batch (gmail-applied-<HHMMSS>.json) applied within
+RECONCILE_WINDOW_DAYS and not undone is re-checked on every pass, newest
+first, so a manual move made days later is still learned. Each pass stamps
+last_reconciled_at (informational). The message-id keyed state prevents
+double counting.
+
 Entry points:
   detect_corrections(applied, current_labels)      -> list of corrections (pure)
   record_corrections(state, corrections)           -> newly recorded (pure)
   auto_learn(state, ledger)                        -> learned entries (pure-ish)
   unsubscribe_candidates(slim, triage, state)      -> candidates (pure)
+  load_unreconciled_applied(account)               -> records to process
   reconcile(account[, service])                    -> exit code (I/O wrapper)
 
   python -m gogos.gmail.gmail_reconcile <account>
@@ -48,9 +55,10 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from gogos import paths
 from gogos.auth.accounts import resolve_account
 from gogos.gmail import gmail_ledger
 from gogos.gmail.gmail_classify import _domain
@@ -60,13 +68,16 @@ from gogos.paths import STORAGE_ROOT, latest_alias, storage_path
 # before the ledger auto-learns it.
 AUTO_LEARN_THRESHOLD = 3
 
+# How long after an apply a batch keeps being re-checked for manual moves.
+RECONCILE_WINDOW_DAYS = 14
+
 _GSD_PREFIX = "GSD/"
 # Categories a sender must be "never rescued" from to qualify for unsubscribe.
 _UNSUB_CATEGORIES = {"Safe to Delete", "Newsletters"}
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return paths.now_utc().isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -282,40 +293,61 @@ def _load_latest(account: str, kind: str, filename: str) -> dict:
     return json.loads(path.read_text())
 
 
-def load_latest_applied(account: str) -> dict:
-    """The most recent applied batch across ALL approval dates.
+def load_unreconciled_applied(account: str) -> list[dict]:
+    """Every applied batch still worth checking, newest first.
 
-    Unlike gmail_undo.load_applied (deliberately today-only: undo reverses the
-    batch you just applied), corrections show up days after an apply — so
-    reconcile scans approvals/<account>/<date>/ newest-first.
+    That is every record across ALL approval dates whose applied_at is within
+    RECONCILE_WINDOW_DAYS and which has not been undone. A batch is re-checked
+    on every pass inside the window, so a manual move made days after the
+    first pass is still learned; the message-id keyed state prevents double
+    counting. Each record carries "_path" so reconcile can stamp it.
     """
-    root = STORAGE_ROOT / "approvals" / resolve_account(account)
-    if not root.exists():
-        return {}
-    for dated in sorted(root.iterdir(), reverse=True):
-        path = dated / "gmail-applied.json"
-        if path.is_file():
-            try:
-                return json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
-                continue
-    return {}
+    from gogos.gmail import gmail_apply
+
+    cutoff = paths.now_utc() - timedelta(days=RECONCILE_WINDOW_DAYS)
+    out = []
+    for path, record in gmail_apply.applied_records(resolve_account(account)):
+        if record.get("undone_at"):
+            continue
+        try:
+            applied_at = datetime.fromisoformat(record.get("applied_at", ""))
+        except ValueError:
+            continue  # no usable timestamp: cannot place it in the window
+        if applied_at.tzinfo is None:
+            applied_at = applied_at.replace(tzinfo=timezone.utc)
+        if applied_at < cutoff:
+            continue
+        out.append({**record, "_path": str(path)})
+    return out
+
+
+def _mark_reconciled(record: dict) -> None:
+    """Stamp last_reconciled_at on the on-disk record (informational, best effort)."""
+    path = Path(record.get("_path", ""))
+    try:
+        on_disk = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return
+    on_disk["last_reconciled_at"] = _utcnow()
+    path.write_text(json.dumps(on_disk, indent=2))
 
 
 def reconcile(account: str, service=None) -> int:
     """Full reconcile pass: detect -> record -> learn -> candidates -> artefact."""
     account = resolve_account(account)
-    applied = load_latest_applied(account)
+    records = load_unreconciled_applied(account)
 
     state = load_state(account)
 
     new_corrections: list[dict] = []
-    if applied.get("moves") and not applied.get("undone_at"):
-        if service is None:
-            service = _service(account)
-        ids = [m["id"] for m in applied["moves"]]
-        current = fetch_current_labels(service, ids)
-        new_corrections = record_corrections(state, detect_corrections(applied, current))
+    for applied in records:
+        if applied.get("moves") and not applied.get("undone_at"):
+            if service is None:
+                service = _service(account)
+            ids = [m["id"] for m in applied["moves"]]
+            current = fetch_current_labels(service, ids)
+            new_corrections += record_corrections(
+                state, detect_corrections(applied, current))
 
     ledger = gmail_ledger.load_ledger(account)
     learned, suggestions = auto_learn(state, ledger)
@@ -327,6 +359,8 @@ def reconcile(account: str, service=None) -> int:
     candidates = unsubscribe_candidates(slim, triage, state)
 
     save_state(account, state)
+    for applied in records:
+        _mark_reconciled(applied)
 
     artefact = {
         "generated_at": _utcnow(),

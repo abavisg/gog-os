@@ -10,20 +10,16 @@ Safety: no Calendar API calls, no write-back, no auto-open.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from gogos.auth.accounts import resolve_account
-from gogos.paths import latest_alias, storage_path
-
-_LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
+from gogos.paths import latest_alias, local_tz, now_utc, storage_path
 
 
 def _now_local() -> str:
-    return datetime.now(tz=_LOCAL_TZ).isoformat(timespec="seconds")
+    return now_utc().astimezone(local_tz()).isoformat(timespec="seconds")
 
 
 def _parse_local(dt_str: str) -> str:
@@ -33,7 +29,7 @@ def _parse_local(dt_str: str) -> str:
     try:
         dt = datetime.fromisoformat(dt_str)
         if dt.tzinfo is not None:
-            return dt.astimezone(_LOCAL_TZ).strftime("%H:%M")
+            return dt.astimezone(local_tz()).strftime("%H:%M")
         return dt_str
     except Exception:
         return dt_str
@@ -77,7 +73,7 @@ def render_report(
 
     lines: list[str] = []
     lines.append(f"# Calendar Brief — {account} · {period}")
-    lines.append(f"")
+    lines.append("")
     lines.append(f"_Generated: {generated_at}_  ")
     lines.append(f"_Sources: {brief_path} · {slim_path}_")
     lines.append("")
@@ -120,12 +116,12 @@ def render_report(
 
             prep = eb.get("prep", "")
             if prep:
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"**Prep:** {prep}")
 
             notes = eb.get("notes", "")
             if notes:
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"{notes}")
 
             lines.append("")

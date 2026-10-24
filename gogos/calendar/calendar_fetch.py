@@ -11,18 +11,16 @@ period values:
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 
 from gogos.auth.accounts import resolve_account
 from gogos.auth.google_auth import get_credentials
+from gogos import paths
 from gogos.paths import latest_alias, storage_path
 
-_DEFAULT_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
 _MAX_RESULTS = 250
 _VALID_PERIODS = {"today", "tomorrow", "week"}
 
@@ -35,21 +33,22 @@ def _resolve_period(period: str) -> tuple[str, str, str]:
             f"Invalid period '{period}'. Use 'today', 'tomorrow', or 'week'."
         )
 
-    local_now = datetime.now(tz=_DEFAULT_TZ)
+    tz = paths.local_tz()
+    local_now = paths.now_utc().astimezone(tz)
     today = local_now.date()
 
     if p == "today":
-        start = datetime.combine(today, time.min, tzinfo=_DEFAULT_TZ)
-        end = datetime.combine(today, time.max, tzinfo=_DEFAULT_TZ)
+        start = datetime.combine(today, time.min, tzinfo=tz)
+        end = datetime.combine(today, time.max, tzinfo=tz)
         label = "today"
     elif p == "tomorrow":
         tomorrow = today + timedelta(days=1)
-        start = datetime.combine(tomorrow, time.min, tzinfo=_DEFAULT_TZ)
-        end = datetime.combine(tomorrow, time.max, tzinfo=_DEFAULT_TZ)
+        start = datetime.combine(tomorrow, time.min, tzinfo=tz)
+        end = datetime.combine(tomorrow, time.max, tzinfo=tz)
         label = "tomorrow"
     else:  # week
-        start = datetime.combine(today, time.min, tzinfo=_DEFAULT_TZ)
-        end = datetime.combine(today + timedelta(days=7), time.max, tzinfo=_DEFAULT_TZ)
+        start = datetime.combine(today, time.min, tzinfo=tz)
+        end = datetime.combine(today + timedelta(days=7), time.max, tzinfo=tz)
         label = "week"
 
     return start.isoformat(), end.isoformat(), label

@@ -69,3 +69,54 @@ def test_latest_alias():
     result = latest_alias(dir_path, "latest-raw.json")
     assert result == Path("/some/dir/latest-raw.json")
     assert isinstance(result, Path)
+
+
+# --- One today (spec 1 item 3) ------------------------------------------------
+
+_SUMMER_2330_UTC = datetime(2026, 6, 29, 23, 30, tzinfo=ZoneInfo("UTC"))
+
+
+def test_now_utc_is_timezone_aware_utc():
+    from datetime import timedelta
+
+    from gogos.paths import now_utc
+
+    assert now_utc().utcoffset() == timedelta(0)
+
+
+def test_today_honours_gogos_timezone(monkeypatch):
+    import gogos.paths as paths_mod
+
+    monkeypatch.setattr(paths_mod, "now_utc", lambda: _SUMMER_2330_UTC)
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    assert paths_mod.today() == "2026-06-30"  # 00:30 BST
+    monkeypatch.setenv("GOGOS_TIMEZONE", "UTC")
+    assert paths_mod.today() == "2026-06-29"
+    monkeypatch.setenv("GOGOS_TIMEZONE", "America/New_York")
+    assert paths_mod.today() == "2026-06-29"
+
+
+def test_storage_path_defaults_to_today(tmp_path, monkeypatch):
+    import gogos.paths as paths_mod
+
+    monkeypatch.setattr(paths_mod, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(paths_mod, "now_utc", lambda: _SUMMER_2330_UTC)
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    assert paths_mod.storage_path("gmail", "personal", "inbox").name == "2026-06-30"
+
+
+def test_approvals_dir_date_equals_storage_dir_date_at_2330_utc_in_summer(
+        tmp_path, monkeypatch):
+    """A run at 00:30 London (23:30 UTC) files approvals and storage under the
+    same date; approvals used to take the UTC date (one day behind)."""
+    import gogos.paths as paths_mod
+    from gogos.gmail import gmail_apply
+
+    monkeypatch.setattr(paths_mod, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(gmail_apply, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(paths_mod, "now_utc", lambda: _SUMMER_2330_UTC)
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+
+    approvals = gmail_apply._approvals_dir("me@x.com")
+    storage = paths_mod.storage_path("gmail", "me@x.com", "inbox")
+    assert approvals.name == storage.name == "2026-06-30"

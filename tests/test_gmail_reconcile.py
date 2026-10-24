@@ -273,29 +273,138 @@ def test_fetch_current_labels_maps_ids_to_names_and_none_for_missing():
     assert out == {"m1": ["INBOX"], "m2": ["GSD/Review"], "gone": None}
 
 
-# --- load_latest_applied: newest batch across dates -------------------------------
+# --- load_unreconciled_applied: every unreconciled batch across dates ------------
 
-def test_load_latest_applied_scans_dates_newest_first(tmp_path, monkeypatch):
-    """Corrections happen days after an apply — reconcile must find the most
-    recent applied batch, not just today's (unlike undo, which is today-only)."""
+def _write_record(storage, date, hhmmss, applied_at, **extra):
+    import json
+
+    d = storage / "approvals" / "me@x.com" / date
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"gmail-applied-{hhmmss}.json"
+    fields = {"batch_id": path.stem, "applied_at": applied_at, "undone_at": None, **extra}
+    path.write_text(json.dumps(_applied(**fields)))
+    return path
+
+
+def _freeze_now(monkeypatch, iso):
+    from datetime import datetime
+
+    import gogos.paths as paths_mod
+
+    monkeypatch.setattr(paths_mod, "now_utc", lambda: datetime.fromisoformat(iso))
+
+
+def test_load_unreconciled_applied_scans_dates_newest_first(tmp_path, monkeypatch):
+    """Corrections happen days after an apply: reconcile must find every batch
+    in the window across dates, newest first, including ones already reconciled
+    (re-checking is safe: state is keyed by message id) but not undone ones."""
+    from gogos.gmail import gmail_apply
+
+    m = _reload()
+    monkeypatch.setattr(gmail_apply, "STORAGE_ROOT", tmp_path)
+    _freeze_now(monkeypatch, "2026-07-01T08:00:00+00:00")
+    _write_record(tmp_path, "2026-06-28", "090000", "2026-06-28T09:00:00+00:00")
+    _write_record(tmp_path, "2026-06-30", "080000", "2026-06-30T08:00:00+00:00")
+    _write_record(tmp_path, "2026-06-30", "070000", "2026-06-30T07:00:00+00:00",
+                  last_reconciled_at="2026-06-30T07:30:00+00:00")
+    _write_record(tmp_path, "2026-06-30", "060000", "2026-06-30T06:00:00+00:00",
+                  undone_at="2026-06-30T06:30:00+00:00")
+    (tmp_path / "approvals" / "me@x.com" / "2026-07-01").mkdir()  # plan only
+
+    got = [r["batch_id"] for r in m.load_unreconciled_applied("me@x.com")]
+    assert got == ["gmail-applied-080000", "gmail-applied-070000", "gmail-applied-090000"]
+
+
+def test_batch_older_than_reconcile_window_is_skipped(tmp_path, monkeypatch):
+    from gogos.gmail import gmail_apply
+
+    m = _reload()
+    assert m.RECONCILE_WINDOW_DAYS == 14
+    monkeypatch.setattr(gmail_apply, "STORAGE_ROOT", tmp_path)
+    _freeze_now(monkeypatch, "2026-07-21T08:00:00+00:00")
+    _write_record(tmp_path, "2026-07-01", "080000", "2026-07-01T08:00:00+00:00")  # 20 days
+    _write_record(tmp_path, "2026-07-18", "080000", "2026-07-18T08:00:00+00:00")  # 3 days
+
+    got = [r["applied_at"] for r in m.load_unreconciled_applied("me@x.com")]
+    assert got == ["2026-07-18T08:00:00+00:00"]
+
+
+def test_load_unreconciled_applied_empty_when_nothing_applied(tmp_path, monkeypatch):
+    from gogos.gmail import gmail_apply
+
+    m = _reload()
+    monkeypatch.setattr(gmail_apply, "STORAGE_ROOT", tmp_path)
+    assert m.load_unreconciled_applied("me@x.com") == []
+
+
+def _reconcile_env(m, tmp_path, monkeypatch):
+    """Point reconcile, apply and ledger storage at tmp_path; return the
+    reconcile artefact directory factory."""
+    from gogos.gmail import gmail_apply
+
+    monkeypatch.setattr(gmail_apply, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(m, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(gmail_ledger, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(gmail_ledger, "resolve_account", lambda a: a)
+    monkeypatch.setattr(m, "_load_latest", lambda account, kind, filename: {})
+
+    def fake_storage_path(module, account, kind, date=None):
+        d = tmp_path / module / account / kind / "2026-07-01"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    monkeypatch.setattr(m, "storage_path", fake_storage_path)
+    return fake_storage_path
+
+
+def test_reconcile_processes_two_records_and_marks_each(tmp_path, monkeypatch):
     import json
 
     m = _reload()
-    monkeypatch.setattr(m, "STORAGE_ROOT", tmp_path)
-    root = tmp_path / "approvals" / "me@x.com"
-    (root / "2026-06-28").mkdir(parents=True)
-    (root / "2026-06-30").mkdir(parents=True)
-    (root / "2026-07-01").mkdir(parents=True)  # plan only, no applied file
-    (root / "2026-06-28" / "gmail-applied.json").write_text(json.dumps({"tag": "old"}))
-    (root / "2026-06-30" / "gmail-applied.json").write_text(json.dumps({"tag": "new"}))
+    fake_storage_path = _reconcile_env(m, tmp_path, monkeypatch)
+    _freeze_now(monkeypatch, "2026-07-01T08:00:00+00:00")
+    first = _write_record(tmp_path, "2026-06-30", "080000", "2026-06-30T08:00:00+00:00",
+                          moves=[{"id": "a1", "category": "Newsletters",
+                                  "label_name": "GSD/Newsletters", "from": "x@a.com"}])
+    second = _write_record(tmp_path, "2026-06-30", "090000", "2026-06-30T09:00:00+00:00",
+                           moves=[{"id": "b1", "category": "Newsletters",
+                                   "label_name": "GSD/Newsletters", "from": "y@b.com"}])
 
-    assert m.load_latest_applied("me@x.com")["tag"] == "new"
+    svc = FakeLabelService({"a1": ["INBOX"], "b1": ["INBOX"]})
+    assert m.reconcile("me@x.com", service=svc) == 0
+
+    artefact = json.loads((fake_storage_path("gmail", "me@x.com", "reconcile")
+                           / "latest-reconcile.json").read_text())
+    assert sorted(c["id"] for c in artefact["new_corrections"]) == ["a1", "b1"]
+    for path in (first, second):
+        rec = json.loads(path.read_text())
+        assert rec["last_reconciled_at"]
+        assert "reconciled_at" not in rec
 
 
-def test_load_latest_applied_empty_when_nothing_applied(tmp_path, monkeypatch):
+def test_late_correction_on_3_day_old_batch_is_learned_on_second_pass(tmp_path, monkeypatch):
+    """R1: a manual move made after the first reconcile pass is still seen,
+    as long as the batch is inside the window."""
+    import json
+
     m = _reload()
-    monkeypatch.setattr(m, "STORAGE_ROOT", tmp_path)
-    assert m.load_latest_applied("me@x.com") == {}
+    fake_storage_path = _reconcile_env(m, tmp_path, monkeypatch)
+    _freeze_now(monkeypatch, "2026-07-01T08:00:00+00:00")
+    record = _write_record(tmp_path, "2026-06-28", "080000", "2026-06-28T08:00:00+00:00",
+                           moves=[{"id": "a1", "category": "Newsletters",
+                                   "label_name": "GSD/Newsletters", "from": "x@a.com"}])
+
+    # First pass: still where it was filed, nothing to learn.
+    assert m.reconcile("me@x.com", service=FakeLabelService({"a1": ["L_NEWS"]})) == 0
+    first_pass = json.loads(record.read_text())["last_reconciled_at"]
+
+    # Later the user re-files it; the second pass learns it.
+    _freeze_now(monkeypatch, "2026-07-01T09:00:00+00:00")
+    assert m.reconcile("me@x.com", service=FakeLabelService({"a1": ["L_REVIEW"]})) == 0
+    artefact = json.loads((fake_storage_path("gmail", "me@x.com", "reconcile")
+                           / "latest-reconcile.json").read_text())
+    assert [(c["id"], c["to"]) for c in artefact["new_corrections"]] == [("a1", "Review")]
+    assert json.loads(record.read_text())["last_reconciled_at"] > first_pass
 
 
 # --- end-to-end reconcile() -------------------------------------------------------
@@ -313,7 +422,7 @@ def test_reconcile_end_to_end_writes_artefact(tmp_path, monkeypatch):
     monkeypatch.setattr(gmail_ledger, "STORAGE_ROOT", tmp_path / "storage")
     monkeypatch.setattr(gmail_ledger, "resolve_account", lambda a: a)
 
-    monkeypatch.setattr(m, "load_latest_applied", lambda account: _applied())
+    monkeypatch.setattr(m, "load_unreconciled_applied", lambda account: [_applied()])
     monkeypatch.setattr(m, "_load_latest", lambda account, kind, filename:
                         SLIM if kind == "inbox" else TRIAGE)
 
@@ -338,3 +447,22 @@ def test_reconcile_end_to_end_writes_artefact(tmp_path, monkeypatch):
         (fake_storage_path("gmail", "me@x.com", "reconcile") / "latest-reconcile.json")
         .read_text())
     assert artefact2["new_corrections"] == []
+
+
+def test_legacy_applied_record_is_reconciled(tmp_path, monkeypatch):
+    """R2: a gmail-applied.json written before per-batch records still feeds reconcile."""
+    import json
+
+    m = _reload()
+    fake_storage_path = _reconcile_env(m, tmp_path, monkeypatch)
+    _freeze_now(monkeypatch, "2026-07-01T08:00:00+00:00")
+    d = tmp_path / "approvals" / "me@x.com" / "2026-06-30"
+    d.mkdir(parents=True)
+    (d / "gmail-applied.json").write_text(json.dumps(_applied()))  # no batch_id
+
+    assert [r["batch_id"] for r in m.load_unreconciled_applied("me@x.com")] == ["legacy"]
+    svc = FakeLabelService({"m1": ["INBOX"], "m2": ["L_DELETE"]})
+    assert m.reconcile("me@x.com", service=svc) == 0
+    artefact = json.loads((fake_storage_path("gmail", "me@x.com", "reconcile")
+                           / "latest-reconcile.json").read_text())
+    assert [c["id"] for c in artefact["new_corrections"]] == ["m1"]

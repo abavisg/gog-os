@@ -68,7 +68,7 @@ Read the proposal file and present a clear summary to the user:
 - Total emails to move, grouped by destination folder, with a count per folder.
 - A per-email line: `<subject>  —  <from>  →  GSD/<Category>`.
 - If `stale_ids` is non-empty, surface a **stale-email warning**: these predate
-  yesterday 00:00 and may indicate a missed run.
+  yesterday 00:00 local time (`GOGOS_TIMEZONE`) and may indicate a missed run.
 
 Then ask for explicit confirmation, e.g.:
 

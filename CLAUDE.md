@@ -7,7 +7,7 @@ A Claude Code-native, local-first personal operating system. Turns Gmail, Google
 1. **Local-first.** Nothing leaves the machine unless the user approves it.
 2. **Read-only first.** Write-back (Gmail labels/archive/delete, Calendar writes, sending email, posting) only after explicit two-step approval.
 3. **Scripts normalise; models interpret.** Never pass raw API data to a Claude skill. The pipeline is always `API → normalised slim JSON → skill → Markdown report`.
-4. **Privacy gates live in code, not prompts.** e.g. `gmail_fetch` hard-asserts no message body ever reaches storage. Keep these assertions; don't loosen them.
+4. **Privacy gates live in code, not prompts.** e.g. `gmail_fetch` hard-asserts no message body ever reaches storage. Keep these assertions; don't loosen them. The one exception is the Gmail snippet: it is body-derived (up to about 100 characters), stored, and shown to the model.
 5. **Every report cites its source artefacts.**
 
 ## Architecture (5 layers)
@@ -71,6 +71,6 @@ Today all five skills are normal-reasoning, so none pin a model. Add a pin only 
 
 - Run tests: `.venv/bin/python -m pytest -q` — keep the suite green.
 - New modules follow the existing shape: `fetch` → `normalise` → `report`, each tested under `tests/test_<module>_*.py`.
-- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: Phase 5 — TaskOS.**
+- Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: the v2 build slices in `docs/specs/README.md`.**
 - EmailOS end-to-end behaviour and safety invariants: `docs/EMAILOS.md`.
 - Some commands (`/morning-brief`, `/log`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules — don't assume a command means the module is built.

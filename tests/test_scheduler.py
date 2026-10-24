@@ -255,3 +255,30 @@ def test_notify_escapes_quotes(monkeypatch):
     script = calls[0][2]
     assert '\\"hi\\"' in script
     assert "\\\\" in script
+
+
+# --- unattended runs never block on interactive OAuth (spec 1 item 4) ---------
+
+def test_run_scheduled_without_token_exits_1_fast_without_opening_a_browser(
+        tmp_path, monkeypatch, capsys):
+    import time
+    from unittest.mock import patch
+
+    import gogos.auth.google_auth as google_auth
+
+    m = _reload()
+    monkeypatch.setattr(m, "known_accounts", lambda: ["me@gmail.com"])
+    monkeypatch.setattr(m.start_day, "resolve_account", lambda a: a)
+    monkeypatch.setattr(m, "_notify", lambda message: None)
+    monkeypatch.setattr(google_auth, "_token_path", lambda account: tmp_path / "none.json")
+
+    with patch("gogos.auth.google_auth.InstalledAppFlow.from_client_secrets_file",
+               side_effect=AssertionError("browser flow must not start")):
+        started = time.monotonic()
+        code = m.run_scheduled()
+        elapsed = time.monotonic() - started
+
+    assert code == 1
+    assert elapsed < 1
+    assert ("Account me@gmail.com needs /login-google; refusing to open a browser "
+            "in an unattended run") in capsys.readouterr().err

@@ -2,11 +2,11 @@
 
 Implementation model: Sonnet (default — unpinned, tracks current Sonnet)
 
-Purpose: **reverse the most recent `/email-apply` (or `/email-loop`) batch** —
-move every email that was filed into a `GSD/<Category>` folder back to the inbox.
+Purpose: **reverse the most recent `/email-apply` (or `/email-loop`) batch not yet
+undone**, moving every email that was filed into a `GSD/<Category>` folder back to the inbox.
 This is the exact inverse of a move: remove the `GSD/<Category>` label and add
 `INBOX` back (un-archive). Use it when a run mis-filed mail or you simply changed
-your mind.
+your mind. Run it again to walk back the batch before that.
 
 ## What "undo" means here
 
@@ -20,8 +20,8 @@ returns to the inbox. Nothing is ever deleted; this only relabels.
   hard-asserts that the only label added is `INBOX` and the only label removed is a
   `GSD/<Category>` destination. Any other mutation raises before touching Gmail.
 - **Reverses exactly what was applied.** Undo reads the applied-result record
-  (`gmail-applied.json`) written when the batch was applied — only messages that
-  *actually* moved are reversed. It never guesses from a proposal.
+  (`gmail-applied-<HHMMSS>.json`) written when the batch was applied, so only
+  messages that *actually* moved are reversed. It never guesses from a proposal.
 - **Aborts on a missing label** — if a `GSD/*` label the batch used no longer
   exists, undo stops without partially applying and tells you which is missing.
 
@@ -36,16 +36,19 @@ uses). On a scope error, tell the user to run `/logout-google <account>` then
 
 ## Prerequisite
 
-A prior `/email-apply` or `/email-loop` must have written
-`.core/storage/approvals/<account>/<YYYY-MM-DD>/gmail-applied.json`. If it is
-missing, tell the user there is no applied batch to undo, and stop.
+A prior `/email-apply` or `/email-loop` must have written at least one
+`.core/storage/approvals/<account>/<YYYY-MM-DD>/gmail-applied-<HHMMSS>.json` (one
+per batch; a `gmail-applied.json` from before per-batch records also counts). Undo
+picks the newest record whose `undone_at` is null, on any date.
+If there is none, tell the user there is no applied batch to undo, and stop.
 
 ## Steps
 
 ### Step 1 — Build the undo plan
 
-Confirm with the user before touching Gmail. Read the latest
-`gmail-applied.json` and summarise what will be reversed:
+Confirm with the user before touching Gmail. Read the newest
+`gmail-applied-<HHMMSS>.json` with `undone_at: null` and summarise what will be
+reversed:
 
 - Total emails to return to the inbox, grouped by the folder they came from.
 - A per-email line where available: `<id>  ←  GSD/<Category>`.

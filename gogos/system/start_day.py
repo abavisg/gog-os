@@ -23,28 +23,25 @@ Entry points:
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from gogos.auth.accounts import known_accounts, list_accounts, resolve_account
+from gogos.auth.google_auth import get_credentials
 from gogos.gmail import gmail_classify, gmail_fetch, gmail_normalise, gmail_reconcile
 from gogos.gmail.gmail_report import _cat_prefix, _sender_short, build_digest
-from gogos.paths import STORAGE_ROOT, latest_alias, storage_path
-
-_LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
+from gogos.paths import STORAGE_ROOT, latest_alias, local_tz, now_utc, storage_path, today
 
 _ATTENTION_CATS = ("Action", "Review", "Events")
 
 
 def _now_local() -> datetime:
-    return datetime.now(tz=_LOCAL_TZ)
+    return now_utc().astimezone(local_tz())
 
 
 def _today() -> str:
-    return _now_local().strftime("%Y-%m-%d")
+    return today()
 
 
 def alias_for(email: str) -> str:
@@ -79,8 +76,11 @@ def run_account(account: str, window: str = "yesterday") -> dict:
     Returns {account, alias, triage, slim, reconcile, triage_path, slim_path}.
     Raises RuntimeError if the read pipeline fails; reconcile is best-effort
     (it needs a previously applied batch) and never blocks the morning run.
+    Credentials are checked non-interactively first: a missing or
+    unrefreshable token raises instead of opening a browser.
     """
     email = resolve_account(account)
+    get_credentials(email, interactive=False)
 
     try:
         gmail_reconcile.reconcile(email)

@@ -17,6 +17,11 @@ Entry points:
 
   python -m gogos.gmail.gmail_apply <account> plan     (build + write proposal)
   python -m gogos.gmail.gmail_apply <account> apply    (apply approved proposal)
+
+Each successful apply writes its own record,
+approvals/<account>/<date>/gmail-applied-<HHMMSS>.json (UTC time of apply),
+carrying batch_id (the filename stem) and undone_at: null, so every batch is
+independently undoable (gmail_undo) and reconcilable (gmail_reconcile).
 """
 from __future__ import annotations
 
@@ -25,8 +30,9 @@ import sys
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
+from gogos import paths
 from gogos.auth.accounts import resolve_account
-from gogos.paths import STORAGE_ROOT, latest_alias, storage_path
+from gogos.paths import STORAGE_ROOT, latest_alias, storage_path, today
 
 # The parent folder under which all destination labels live.
 _GSD_PREFIX = "GSD"
@@ -47,6 +53,11 @@ _REMOVABLE = {"INBOX"}
 
 # Labels that must never be added or removed under any circumstance.
 _FORBIDDEN = {"TRASH", "SPAM"}
+
+# Filename prefix of per-batch applied records: gmail-applied-<HHMMSS>.json.
+_APPLIED_PREFIX = "gmail-applied-"
+# The single fixed-name record written before per-batch records existed.
+_LEGACY_APPLIED = "gmail-applied.json"
 
 
 def gsd_label_name(category: str) -> str:
@@ -148,9 +159,15 @@ def resolve_destinations(categories: set[str], label_map: dict[str, str]) -> dic
 # Plan building
 # ---------------------------------------------------------------------------
 
-def _yesterday_start_utc() -> datetime:
-    now = datetime.now(timezone.utc)
-    return datetime.combine(now.date() - timedelta(days=1), time.min, tzinfo=timezone.utc)
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _yesterday_start_local() -> datetime:
+    """Yesterday 00:00 in GOGOS_TIMEZONE: the same cut as the fetch window."""
+    tz = paths.local_tz()
+    now = paths.now_utc().astimezone(tz)
+    return datetime.combine(now.date() - timedelta(days=1), time.min, tzinfo=tz)
 
 
 def _load_latest(account: str, kind: str, filename: str) -> dict:
@@ -172,7 +189,7 @@ def build_plan(account: str, *, triage: dict | None = None,
         slim = _load_latest(account, "inbox", "latest-slim.json")
 
     by_id = {m["id"]: m for m in slim.get("messages", [])}
-    stale_cutoff = _yesterday_start_utc()
+    stale_cutoff = _yesterday_start_local()
 
     moves = []
     stale = []
@@ -219,8 +236,7 @@ def _is_stale(date_str: str, cutoff: datetime) -> bool:
 
 
 def _approvals_dir(account: str) -> Path:
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    d = STORAGE_ROOT / "approvals" / account / date
+    d = STORAGE_ROOT / "approvals" / account / today()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -241,14 +257,25 @@ def _write_applied_result(account: str, plan: dict, moved_ids: list[str]) -> Pat
     """Persist what was actually moved so a later undo can reverse exactly that.
 
     Records, per moved message, the GSD category it was filed into and that INBOX
-    was removed — the precise inverse gmail_undo needs. Only messages that truly
+    was removed: the precise inverse gmail_undo needs. Only messages that truly
     moved are recorded (failures are excluded), so undo never over-reverses.
     The sender is kept so gmail_reconcile can attribute later manual moves.
+
+    One file per batch (gmail-applied-<HHMMSS>.json, UTC), never overwritten:
+    a second apply in the same second gets a -2, -3 ... suffix.
     """
     moved_set = set(moved_ids)
     by_id = {mv["id"]: mv for mv in plan.get("moves", [])}
+    applied_at = _utcnow()
+    approvals = _approvals_dir(account)
+    stem = f"{_APPLIED_PREFIX}{applied_at.strftime('%H%M%S')}"
+    path, n = approvals / f"{stem}.json", 1
+    while path.exists():
+        n += 1
+        path = approvals / f"{stem}-{n}.json"
     applied = {
-        "applied_at": datetime.now(timezone.utc).isoformat(),
+        "batch_id": path.stem,
+        "applied_at": applied_at.isoformat(),
         "account": account,
         "action": "move",
         "moves": [
@@ -258,10 +285,36 @@ def _write_applied_result(account: str, plan: dict, moved_ids: list[str]) -> Pat
             for mid in moved_ids if mid in by_id
         ],
         "moved_ids": [mid for mid in moved_ids if mid in moved_set],
+        "undone_at": None,
     }
-    path = _approvals_dir(account) / "gmail-applied.json"
     path.write_text(json.dumps(applied, indent=2))
     return path
+
+
+def applied_records(account: str) -> list[tuple[Path, dict]]:
+    """Every applied-batch record for an (already resolved) account, newest first.
+
+    Scans approvals/<account>/<date>/ across ALL dates, so an undo or reconcile
+    after midnight still finds yesterday's batches. Unreadable files are skipped.
+    A legacy gmail-applied.json is included as batch_id "legacy", keeping its
+    undone_at if it has one, so batches applied before per-batch records stay
+    undoable and reconcilable.
+    """
+    root = STORAGE_ROOT / "approvals" / account
+    if not root.exists():
+        return []
+    files = [*root.glob(f"*/{_APPLIED_PREFIX}*.json"), *root.glob(f"*/{_LEGACY_APPLIED}")]
+    records = []
+    for path in files:
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if path.name == _LEGACY_APPLIED:
+            record = {"batch_id": "legacy", "undone_at": None, **record}
+        records.append((path, record))
+    records.sort(key=lambda r: (r[1].get("applied_at", ""), r[0].name), reverse=True)
+    return records
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,8 @@ Dated directories via `gogos.paths.storage_path(module, account, kind, date)`. A
 .core/storage/calendar/<account>/events/<date>/latest-slim.json
 .core/storage/reports/email/<account>/<date>/latest.md          # + latest.html
 .core/storage/reports/start-day/all/<date>/latest.md            # merged multi-account panel
-.core/storage/approvals/<account>/<date>/gmail-labels.json      # proposed moves + undo.json
+.core/storage/approvals/<account>/<date>/gmail-labels.json      # proposed moves
+.core/storage/approvals/<account>/<date>/gmail-applied-<HHMMSS>.json  # one record per applied batch (undo + reconcile)
 .core/storage/auth/<account>/google_token.json                  # chmod 600
 ```
 

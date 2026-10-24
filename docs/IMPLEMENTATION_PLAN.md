@@ -79,8 +79,8 @@ one PR each, pinned parameter: auto-learn threshold N = 3 corrections.
 - **Slice 1 — `List-Unsubscribe` capture.** Headers into fetch + normalise (`unsubscribe`
   field). Headers, not body — the privacy gate is unchanged and tested.
 - **Slice 2 — `/email-undo`.** Every apply writes an inverse plan
-  (`approvals/<account>/<date>/undo.json`); undo replays it through the same gated
-  `_modify`. Test proves apply→undo is a no-op on labels.
+  (`approvals/<account>/<date>/gmail-applied-<HHMMSS>.json`); undo reverses it through
+  the inverse gate `_modify_undo`. Test proves apply→undo is a no-op on labels.
 - **Slice 3 — user rules + sender ledger.** `.core/config/gmail/rules.json` overrides
   checked before built-ins, but can never route important mail to Safe to Delete (tested).
   `sender-ledger.json` guarantees a sender never classifies two ways in a run (tested).
@@ -105,6 +105,16 @@ one PR each, pinned parameter: auto-learn threshold N = 3 corrections.
 (`/email-unsubscribe` — outbound send crossing the approval gate, needs a send scope);
 VIP / waiting-on detection; snooze/defer a thread (TaskOS overlap); weekly email review
 feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond `GSD/Review`.
+
+### v2 slice 1: defects and CI (`docs/specs/01-defects-and-ci.md`)
+- Packaging: setuptools build-system plus `gogos*` package find, so `pip install -e .[dev]` works on a fresh clone; `gogos.egg-info/` untracked and ignored.
+- Per-batch applied records: each apply writes `gmail-applied-<HHMMSS>.json` with `batch_id` and `undone_at`; undo takes the newest un-undone record across dates; reconcile re-checks every record applied in the last 14 days and not undone, stamping `last_reconciled_at`.
+- One today: `gogos.paths.today()` and `now_utc()` back storage, approvals, the fetch "yesterday" window, `/start-day` and report timestamps, so all dates follow `GOGOS_TIMEZONE`.
+- Non-interactive auth: `get_credentials(..., interactive=False)` raises instead of opening a browser; `start_day.run_account` (and so the scheduler) uses it.
+- Docs: `undo.json` replaced by `gmail-applied-<HHMMSS>.json`; SECURITY.md and CLAUDE.md state the Gmail snippet exception.
+- CI: `.github/workflows/ci.yml` runs `ruff check gogos tests` and `pytest -q` on push and PR; ruff rule set pinned; ruff reports 0.
+- Hook: SessionStart runs the nudge only when `.venv/bin/python` exists, and never errors.
+- Tests passing (421/421).
 
 ---
 

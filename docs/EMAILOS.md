@@ -14,7 +14,7 @@ How GogOS triages Gmail and files it into GSD folders — end to end. Commands l
 
 ```
 fetch → normalise → reconcile → classify/triage → report → [approval] → apply
-                                                              ↘ undo.json → /email-undo
+                                                              ↘ gmail-applied-<HHMMSS>.json → /email-undo
 ```
 
 | Step | Module | Output |
@@ -25,8 +25,8 @@ fetch → normalise → reconcile → classify/triage → report → [approval] 
 | Classify (deterministic) | `gmail_classify` | triage JSON |
 | Validate + store triage | `gmail_triage` | `triage/<date>/latest-triage.json` |
 | Render report + digest | `gmail_report` | `reports/email/<account>/<date>/latest.md` + `.html` |
-| Build + apply move plan | `gmail_apply` | `approvals/<account>/<date>/gmail-labels.json` + `undo.json` |
-| Reverse last batch | `gmail_undo` | replays `undo.json` through the same gated `_modify` |
+| Build + apply move plan | `gmail_apply` | `approvals/<account>/<date>/gmail-labels.json` + one `gmail-applied-<HHMMSS>.json` per batch |
+| Reverse last batch | `gmail_undo` | reverses the newest `gmail-applied-<HHMMSS>.json` with `undone_at: null` through the inverse gate `_modify_undo` |
 
 ## Classification
 

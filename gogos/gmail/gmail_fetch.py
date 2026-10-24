@@ -19,6 +19,7 @@ from googleapiclient.discovery import build
 
 from gogos.auth.accounts import resolve_account
 from gogos.auth.google_auth import get_credentials
+from gogos import paths
 from gogos.paths import latest_alias, storage_path
 
 # List-Unsubscribe / -Post are metadata headers (never body): they name where a
@@ -63,7 +64,7 @@ def _resolve_window(window: str) -> tuple[str, int]:
     w = window.strip().lower()
 
     if w == "yesterday":
-        local_now = datetime.now().astimezone()
+        local_now = paths.now_utc().astimezone(paths.local_tz())
         yesterday_midnight = datetime.combine(
             local_now.date() - timedelta(days=1),
             time.min,

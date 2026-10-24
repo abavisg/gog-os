@@ -584,13 +584,14 @@ def test_resolve_window_yesterday_returns_after_before_query():
 
 
 def test_resolve_window_yesterday_after_is_midnight_local():
-    """after: epoch must be ≥ yesterday 00:00 and < today 00:00."""
-    import time as _time
+    """after: epoch must be yesterday 00:00 in GOGOS_TIMEZONE."""
     from datetime import datetime, timedelta
+
+    from gogos.paths import local_tz
     m = _reload()
     query, _ = m._resolve_window("yesterday")
     after_epoch = int(query.split("after:")[1].split()[0])
-    local_now = datetime.now().astimezone()
+    local_now = datetime.now(tz=local_tz())
     today_midnight = datetime.combine(local_now.date(), __import__("datetime").time.min, tzinfo=local_now.tzinfo)
     yesterday_midnight = today_midnight - timedelta(days=1)
     assert after_epoch == int(yesterday_midnight.timestamp())
@@ -769,3 +770,23 @@ def test_fetch_output_records_window(tmp_path, monkeypatch):
 
     data = json.loads((tmp_path / "latest-raw.json").read_text())
     assert data["window"] == "all"
+
+
+def test_resolve_window_yesterday_uses_gogos_timezone_not_system_tz(monkeypatch):
+    """The yesterday window starts at local midnight in GOGOS_TIMEZONE."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import gogos.paths as paths_mod
+
+    m = _reload()
+    fixed = datetime(2026, 6, 29, 23, 30, tzinfo=ZoneInfo("UTC"))
+    monkeypatch.setattr(paths_mod, "now_utc", lambda: fixed)
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Pacific/Auckland")  # 2026-06-30 11:30 NZST
+
+    query, _ = m._resolve_window("yesterday")
+    after_epoch = int(query.split("after:")[1].split()[0])
+    before_epoch = int(query.split("before:")[1].split()[0])
+    expected_after = datetime(2026, 6, 29, 0, 0, tzinfo=ZoneInfo("Pacific/Auckland"))
+    assert after_epoch == int(expected_after.timestamp())
+    assert before_epoch == int(fixed.timestamp())

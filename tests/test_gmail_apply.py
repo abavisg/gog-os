@@ -98,14 +98,19 @@ def _plan(approved=True, moves=None):
 
 # --- Applied-result record (feeds /email-undo) -----------------------------
 
+def _only_applied(directory):
+    """The single per-batch applied record in `directory`."""
+    import json
+    (path,) = directory.glob("gmail-applied-*.json")
+    return json.loads(path.read_text())
+
+
 def test_apply_records_applied_result_for_undo(tmp_path, monkeypatch):
     m = _reload()
     monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
     svc = FakeService(_all_gsd_labels())
     m.apply_plan("personal", _plan(), svc)
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     assert applied["moved_ids"] == ["m1", "m2"]
     assert {mv["category"] for mv in applied["moves"]} == {"Action", "Newsletters"}
     assert {mv["label_name"] for mv in applied["moves"]} == {"GSD/Action", "GSD/Newsletters"}
@@ -129,9 +134,7 @@ def test_apply_records_only_successful_moves(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_modify", _flaky)
     result = m.apply_plan("personal", _plan(), svc)
     assert result["moved_count"] == 1 and result["failed_count"] == 1
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     assert applied["moved_ids"] == ["m1"]  # m2 excluded
 
 
@@ -266,7 +269,7 @@ def test_build_plan_flags_stale_emails(tmp_path, monkeypatch):
     m = _reload()
     monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "_write_plan", lambda account, plan: tmp_path / "p.json")
-    # cutoff is yesterday-00:00 UTC; this date is far in the past => stale
+    # cutoff is yesterday 00:00 local; this date is far in the past => stale
     triage = {"account": "personal", "items": [
         {"id": "old", "category": "Review", "confidence": 0.5,
          "rationale": "x", "suggested_action": "review"},
@@ -299,8 +302,87 @@ def test_applied_result_keeps_sender_for_reconcile(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
     svc = FakeService(_all_gsd_labels())
     m.apply_plan("personal", _plan(), svc)
-
-    import json
-    applied = json.loads((tmp_path / "gmail-applied.json").read_text())
+    applied = _only_applied(tmp_path)
     for mv in applied["moves"]:
         assert "from" in mv
+
+
+# --- Per-batch applied records (spec 1 item 2) -----------------------------
+
+def test_applied_record_is_named_by_utc_time_and_carries_batch_id(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    monkeypatch.setattr(m, "_utcnow",
+                        lambda: datetime(2026, 6, 29, 7, 5, 9, tzinfo=timezone.utc))
+    m.apply_plan("personal", _plan(), FakeService(_all_gsd_labels()))
+
+    import json
+    rec = json.loads((tmp_path / "gmail-applied-070509.json").read_text())
+    assert rec["batch_id"] == "gmail-applied-070509"
+    assert rec["undone_at"] is None
+    assert not (tmp_path / "gmail-applied.json").exists()
+
+
+def test_two_applies_write_two_records(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    clock = iter([datetime(2026, 6, 29, 8, 0, 0, tzinfo=timezone.utc),
+                  datetime(2026, 6, 29, 9, 0, 0, tzinfo=timezone.utc)])
+    monkeypatch.setattr(m, "_utcnow", lambda: next(clock))
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(moves=[
+        {"id": "m1", "category": "Action", "label_name": "GSD/Action"}]), svc)
+    m.apply_plan("personal", _plan(moves=[
+        {"id": "m2", "category": "Newsletters", "label_name": "GSD/Newsletters"}]), svc)
+
+    import json
+    names = sorted(p.name for p in tmp_path.glob("gmail-applied-*.json"))
+    assert names == ["gmail-applied-080000.json", "gmail-applied-090000.json"]
+    assert json.loads((tmp_path / names[0]).read_text())["moved_ids"] == ["m1"]
+    assert json.loads((tmp_path / names[1]).read_text())["moved_ids"] == ["m2"]
+
+
+def test_two_applies_in_the_same_second_never_overwrite(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    m = _reload()
+    monkeypatch.setattr(m, "_approvals_dir", lambda account: tmp_path)
+    monkeypatch.setattr(m, "_utcnow",
+                        lambda: datetime(2026, 6, 29, 8, 0, 0, tzinfo=timezone.utc))
+    svc = FakeService(_all_gsd_labels())
+    m.apply_plan("personal", _plan(), svc)
+    m.apply_plan("personal", _plan(), svc)
+
+    names = sorted(p.stem for p in tmp_path.glob("gmail-applied-*.json"))
+    assert names == ["gmail-applied-080000", "gmail-applied-080000-2"]
+
+
+def test_stale_cutoff_is_local_midnight_not_utc(tmp_path, monkeypatch):
+    """The stale cutoff matches the fetch window: yesterday 00:00 in
+    GOGOS_TIMEZONE. At 23:30 UTC in summer (00:30 BST on 06-30), mail from
+    22:30 UTC on 06-28 (23:30 BST, before yesterday local) is stale, though it
+    is after yesterday 00:00 UTC; mail from 23:10 UTC on 06-28 (00:10 BST on
+    06-29) is not."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import gogos.paths as paths_mod
+
+    m = _reload()
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
+    monkeypatch.setattr(m, "_write_plan", lambda account, plan: tmp_path / "p.json")
+    monkeypatch.setattr(paths_mod, "now_utc",
+                        lambda: datetime(2026, 6, 29, 23, 30, tzinfo=ZoneInfo("UTC")))
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    item = {"category": "Review", "confidence": 0.5, "rationale": "x",
+            "suggested_action": "review"}
+    triage = {"account": "personal", "items": [{"id": "a", **item}, {"id": "b", **item}]}
+    slim = {"messages": [
+        {"id": "a", "subject": "", "from": "x@x.com", "date": "2026-06-28T22:30:00+00:00"},
+        {"id": "b", "subject": "", "from": "x@x.com", "date": "2026-06-28T23:10:00+00:00"},
+    ]}
+    assert m.build_plan("personal", triage=triage, slim=slim)["stale_ids"] == ["a"]
