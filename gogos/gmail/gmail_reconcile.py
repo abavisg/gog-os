@@ -35,9 +35,11 @@ Privacy and safety:
   * A batch reversed by /email-undo is marked undone_at and skipped here:
     GogOS restored INBOX itself, so those are not user corrections.
 
-Every applied batch (gmail-applied-<HHMMSS>.json) is reconciled once: each
-record not yet marked reconciled_at is processed, newest first, then marked.
-The message-id keyed state still prevents double counting.
+Every applied batch (gmail-applied-<HHMMSS>.json) applied within
+RECONCILE_WINDOW_DAYS and not undone is re-checked on every pass, newest
+first, so a manual move made days later is still learned. Each pass stamps
+last_reconciled_at (informational). The message-id keyed state prevents
+double counting.
 
 Entry points:
   detect_corrections(applied, current_labels)      -> list of corrections (pure)
@@ -53,9 +55,10 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from gogos import paths
 from gogos.auth.accounts import resolve_account
 from gogos.gmail import gmail_ledger
 from gogos.gmail.gmail_classify import _domain
@@ -65,13 +68,16 @@ from gogos.paths import STORAGE_ROOT, latest_alias, storage_path
 # before the ledger auto-learns it.
 AUTO_LEARN_THRESHOLD = 3
 
+# How long after an apply a batch keeps being re-checked for manual moves.
+RECONCILE_WINDOW_DAYS = 14
+
 _GSD_PREFIX = "GSD/"
 # Categories a sender must be "never rescued" from to qualify for unsubscribe.
 _UNSUB_CATEGORIES = {"Safe to Delete", "Newsletters"}
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return paths.now_utc().isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -288,28 +294,41 @@ def _load_latest(account: str, kind: str, filename: str) -> dict:
 
 
 def load_unreconciled_applied(account: str) -> list[dict]:
-    """Every applied batch not yet marked reconciled_at, newest first.
+    """Every applied batch still worth checking, newest first.
 
-    Scans approvals/<account>/<date>/ across ALL dates (corrections show up
-    days after an apply). Each record carries "_path" so reconcile can mark it.
+    That is every record across ALL approval dates whose applied_at is within
+    RECONCILE_WINDOW_DAYS and which has not been undone. A batch is re-checked
+    on every pass inside the window, so a manual move made days after the
+    first pass is still learned; the message-id keyed state prevents double
+    counting. Each record carries "_path" so reconcile can stamp it.
     """
     from gogos.gmail import gmail_apply
 
-    return [
-        {**record, "_path": str(path)}
-        for path, record in gmail_apply.applied_records(resolve_account(account))
-        if not record.get("reconciled_at")
-    ]
+    cutoff = paths.now_utc() - timedelta(days=RECONCILE_WINDOW_DAYS)
+    out = []
+    for path, record in gmail_apply.applied_records(resolve_account(account)):
+        if record.get("undone_at"):
+            continue
+        try:
+            applied_at = datetime.fromisoformat(record.get("applied_at", ""))
+        except ValueError:
+            continue  # no usable timestamp: cannot place it in the window
+        if applied_at.tzinfo is None:
+            applied_at = applied_at.replace(tzinfo=timezone.utc)
+        if applied_at < cutoff:
+            continue
+        out.append({**record, "_path": str(path)})
+    return out
 
 
 def _mark_reconciled(record: dict) -> None:
-    """Set reconciled_at on the on-disk applied record (best effort)."""
+    """Stamp last_reconciled_at on the on-disk record (informational, best effort)."""
     path = Path(record.get("_path", ""))
     try:
         on_disk = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return
-    on_disk["reconciled_at"] = _utcnow()
+    on_disk["last_reconciled_at"] = _utcnow()
     path.write_text(json.dumps(on_disk, indent=2))
 
 

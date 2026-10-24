@@ -301,6 +301,9 @@ def test_two_applies_in_one_day_undo_second_then_first_reconcile_learns_both(
         datetime(2026, 6, 29, 9, 30, 0, tzinfo=timezone.utc),
     ])
     monkeypatch.setattr(apply_mod, "_utcnow", lambda: next(clock))
+    import gogos.paths as paths_mod
+    monkeypatch.setattr(paths_mod, "now_utc",
+                        lambda: datetime(2026, 6, 29, 10, 0, 0, tzinfo=timezone.utc))
     monkeypatch.setattr(apply_mod, "_approvals_dir", lambda account: (
         storage / "approvals" / account / "2026-06-29"))
     (storage / "approvals" / "me@x.com" / "2026-06-29").mkdir(parents=True)
@@ -336,7 +339,7 @@ def test_two_applies_in_one_day_undo_second_then_first_reconcile_learns_both(
     assert artefact["learned"] == [
         {"sender": "promo.example.com", "category": "Review", "corrections": 3}]
     for path in (first, second):
-        assert json.loads(path.read_text())["reconciled_at"]
+        assert json.loads(path.read_text())["last_reconciled_at"]
 
     # Undo reverses the second batch first, marking only that record.
     plan = undo_mod.build_undo("me@x.com")

@@ -108,7 +108,7 @@ feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond 
 
 ### v2 slice 1: defects and CI (`docs/specs/01-defects-and-ci.md`)
 - Packaging: setuptools build-system plus `gogos*` package find, so `pip install -e .[dev]` works on a fresh clone; `gogos.egg-info/` untracked and ignored.
-- Per-batch applied records: each apply writes `gmail-applied-<HHMMSS>.json` with `batch_id` and `undone_at`; undo takes the newest un-undone record across dates; reconcile processes every record without `reconciled_at` and marks each.
+- Per-batch applied records: each apply writes `gmail-applied-<HHMMSS>.json` with `batch_id` and `undone_at`; undo takes the newest un-undone record across dates; reconcile re-checks every record applied in the last 14 days and not undone, stamping `last_reconciled_at`.
 - One today: `gogos.paths.today()` and `now_utc()` back storage, approvals, the fetch "yesterday" window, `/start-day` and report timestamps, so all dates follow `GOGOS_TIMEZONE`.
 - Non-interactive auth: `get_credentials(..., interactive=False)` raises instead of opening a browser; `start_day.run_account` (and so the scheduler) uses it.
 - Docs: `undo.json` replaced by `gmail-applied-<HHMMSS>.json`; SECURITY.md and CLAUDE.md state the Gmail snippet exception.
