@@ -48,10 +48,15 @@ of a fixed name. Each record carries `batch_id` (the filename stem) and
 - `gmail_undo.load_applied` returns the **newest record with `undone_at` null**
   across all dates (not today only), so an undo after midnight still works. Undo
   sets `undone_at` on that record only.
-- `gmail_reconcile.load_latest_applied` becomes `load_unreconciled_applied`: every
-  record not yet marked `reconciled_at`, newest first. `detect_corrections` runs per
-  record; `reconcile` marks each record `reconciled_at` after processing. The
-  message-id keyed state still prevents double counting.
+- `gmail_reconcile.load_latest_applied` becomes `load_recent_applied`: every record
+  whose `applied_at` is within `RECONCILE_WINDOW_DAYS` (14) and whose `undone_at` is
+  null, newest first. `detect_corrections` runs per record on every pass, so a manual
+  move made days after the apply is still learned; the message-id keyed state prevents
+  double counting. `reconcile` stamps `last_reconciled_at` on each record it checked
+  (informational, never a gate). Legacy `gmail-applied.json` records are read too,
+  with `batch_id: "legacy"`, so batches applied before this change stay undoable and
+  reconcilable. (Amended 2026-10-23 after PR #15 review: the first wording, "every
+  record not yet marked reconciled_at", made reconciliation once-only per batch.)
 - `gmail_loop` needs no change: each `apply_plan` call writes its own record.
 
 ### 3. One today
@@ -96,12 +101,12 @@ gogos.system.start_day --nudge || true`.
 ## Acceptance criteria
 
 - [ ] `git clone && python -m venv .venv && .venv/bin/pip install -e .[dev]` succeeds.
-- [ ] Two `apply_plan` calls in one day produce two records; `build_undo` reverses the
-      second, then the first; `reconcile` learns from both.
+- [ ] Two `apply_plan` calls in one day produce two records; `reconcile` learns from
+      both; `build_undo` then reverses the second, then the first.
 - [ ] `grep -rn "datetime.now()" gogos` returns nothing; `approvals/` and `storage/`
       dates agree for a run at 00:30 local.
 - [ ] `run_scheduled` with no token exits 1 within a second with the message above.
-- [ ] `grep -rn "undo.json" docs` returns nothing.
+- [ ] `grep -rn "undo.json" docs --exclude-dir=specs` returns nothing (this spec quotes the string).
 - [ ] CI green on the PR; `ruff check` reports 0.
 - [ ] Opening a session in a clone without `.venv` prints no hook error.
 
@@ -110,7 +115,9 @@ gogos.system.start_day --nudge || true`.
 - `tests/test_gmail_apply.py`: per-batch filenames; two applies, two records.
 - `tests/test_gmail_undo.py`: newest-unundone selection across dates; `undone_at`
   set on one record only.
-- `tests/test_gmail_reconcile.py`: two records, both reconciled, each marked.
+- `tests/test_gmail_reconcile.py`: two records, both reconciled, each stamped; a
+  correction made after a first pass on a 3-day-old record is learned on the second
+  pass; a 20-day-old record is skipped; a legacy `gmail-applied.json` is read.
 - `tests/test_paths.py`: `today()` honours `GOGOS_TIMEZONE`; approvals dir equals
   storage dir date at a mocked 23:30 UTC in summer.
 - `tests/test_google_auth.py`: `interactive=False` raises instead of calling
