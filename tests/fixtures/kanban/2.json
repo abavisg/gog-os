@@ -1,0 +1,11 @@
+{
+  "id": "2",
+  "subject": "Probe task two",
+  "description": "second probe",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": [],
+  "metadata": {
+    "gogos_ref": "life/registers/commitment/probe.md"
+  }
+}

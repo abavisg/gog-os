@@ -1,7 +1,8 @@
 """Shared fixtures. Every test runs against a synthetic life/ and me/ in tmp_path.
 
 _isolate_memory is autouse: LIFE_ROOT and ME_ROOT are monkeypatched for every
-test, so no test can read or write the real tree even by accident. Tests that
+test, and the Claude Code task list is pointed into tmp_path, so no test can
+read or write the real tree or ~/.claude/tasks even by accident. Tests that
 need the skeleton on disk ask for `life`.
 """
 from __future__ import annotations
@@ -21,6 +22,9 @@ KINDS = ("goal", "commitment", "waiting", "renewal", "occasion", "decision", "pa
 def _isolate_memory(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "LIFE_ROOT", tmp_path / "life")
     monkeypatch.setattr(paths, "ME_ROOT", tmp_path / "me")
+    # The kanban projection writes under <CLAUDE_CONFIG_DIR>/tasks/<list id>.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    monkeypatch.setenv("CLAUDE_CODE_TASK_LIST_ID", "gogos")
 
 
 @pytest.fixture
