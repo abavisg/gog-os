@@ -60,7 +60,11 @@ def _check_ignore(rel: str) -> int:
 def test_gitignore_boundary():
     # Reads only the repo's .gitignore rules; no file is created or opened.
     assert _check_ignore("life/inbox/x") == 0
-    assert _check_ignore(".core/x") == 0
+    assert _check_ignore(".core/storage/x") == 0
+    assert _check_ignore(".core/config/secrets/x") == 0
+    assert _check_ignore(".core/config/accounts.json") == 0
+    # .core/config/ is tracked, decoupled config (spec 2, amended 2026-10-24).
+    assert _check_ignore(".core/config/gmail/categories.json") == 1
     assert _check_ignore("life/wiki/x") == 1
     assert _check_ignore("life/registers/goal/x.md") == 1
     assert _check_ignore("me/profile.md") == 1
