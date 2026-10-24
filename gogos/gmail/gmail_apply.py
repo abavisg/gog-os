@@ -30,6 +30,7 @@ import sys
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
+from gogos import paths
 from gogos.auth.accounts import resolve_account
 from gogos.paths import STORAGE_ROOT, latest_alias, storage_path, today
 
@@ -162,9 +163,11 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _yesterday_start_utc() -> datetime:
-    now = datetime.now(timezone.utc)
-    return datetime.combine(now.date() - timedelta(days=1), time.min, tzinfo=timezone.utc)
+def _yesterday_start_local() -> datetime:
+    """Yesterday 00:00 in GOGOS_TIMEZONE: the same cut as the fetch window."""
+    tz = paths.local_tz()
+    now = paths.now_utc().astimezone(tz)
+    return datetime.combine(now.date() - timedelta(days=1), time.min, tzinfo=tz)
 
 
 def _load_latest(account: str, kind: str, filename: str) -> dict:
@@ -186,7 +189,7 @@ def build_plan(account: str, *, triage: dict | None = None,
         slim = _load_latest(account, "inbox", "latest-slim.json")
 
     by_id = {m["id"]: m for m in slim.get("messages", [])}
-    stale_cutoff = _yesterday_start_utc()
+    stale_cutoff = _yesterday_start_local()
 
     moves = []
     stale = []

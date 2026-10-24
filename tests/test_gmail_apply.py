@@ -269,7 +269,7 @@ def test_build_plan_flags_stale_emails(tmp_path, monkeypatch):
     m = _reload()
     monkeypatch.setattr(m, "resolve_account", lambda a: a)
     monkeypatch.setattr(m, "_write_plan", lambda account, plan: tmp_path / "p.json")
-    # cutoff is yesterday-00:00 UTC; this date is far in the past => stale
+    # cutoff is yesterday 00:00 local; this date is far in the past => stale
     triage = {"account": "personal", "items": [
         {"id": "old", "category": "Review", "confidence": 0.5,
          "rationale": "x", "suggested_action": "review"},
@@ -359,3 +359,30 @@ def test_two_applies_in_the_same_second_never_overwrite(tmp_path, monkeypatch):
 
     names = sorted(p.stem for p in tmp_path.glob("gmail-applied-*.json"))
     assert names == ["gmail-applied-080000", "gmail-applied-080000-2"]
+
+
+def test_stale_cutoff_is_local_midnight_not_utc(tmp_path, monkeypatch):
+    """The stale cutoff matches the fetch window: yesterday 00:00 in
+    GOGOS_TIMEZONE. At 23:30 UTC in summer (00:30 BST on 06-30), mail from
+    22:30 UTC on 06-28 (23:30 BST, before yesterday local) is stale, though it
+    is after yesterday 00:00 UTC; mail from 23:10 UTC on 06-28 (00:10 BST on
+    06-29) is not."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import gogos.paths as paths_mod
+
+    m = _reload()
+    monkeypatch.setattr(m, "resolve_account", lambda a: a)
+    monkeypatch.setattr(m, "_write_plan", lambda account, plan: tmp_path / "p.json")
+    monkeypatch.setattr(paths_mod, "now_utc",
+                        lambda: datetime(2026, 6, 29, 23, 30, tzinfo=ZoneInfo("UTC")))
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    item = {"category": "Review", "confidence": 0.5, "rationale": "x",
+            "suggested_action": "review"}
+    triage = {"account": "personal", "items": [{"id": "a", **item}, {"id": "b", **item}]}
+    slim = {"messages": [
+        {"id": "a", "subject": "", "from": "x@x.com", "date": "2026-06-28T22:30:00+00:00"},
+        {"id": "b", "subject": "", "from": "x@x.com", "date": "2026-06-28T23:10:00+00:00"},
+    ]}
+    assert m.build_plan("personal", triage=triage, slim=slim)["stale_ids"] == ["a"]
