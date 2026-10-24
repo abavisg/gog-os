@@ -1,0 +1,14 @@
+[
+  {"id": "wellness", "title": "Wellness", "priority": 1,
+   "weekly_question": "Am I keeping the habits, and is anything trending wrong?"},
+  {"id": "finance", "title": "Finance", "priority": 2,
+   "weekly_question": "What's due, what renewed silently, how are positions?"},
+  {"id": "growth", "title": "Growth", "priority": 3,
+   "weekly_question": "Which tracks moved, which stalled, what did I learn?"},
+  {"id": "family", "title": "Family", "priority": 4,
+   "weekly_question": "What's coming, what did I promise, what needs a parent decision?"},
+  {"id": "home", "title": "Home", "priority": 5,
+   "weekly_question": "What's expiring, broken, or about to cost money?"},
+  {"id": "work", "title": "Work", "priority": 6,
+   "weekly_question": "What needs me, what am I waiting on?"}
+]
