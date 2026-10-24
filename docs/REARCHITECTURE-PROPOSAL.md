@@ -75,7 +75,7 @@ Three stores, each with a deterministic index script and no LLM in the indexer:
   page, `confidence:` honest, `[[wikilinks]]`, provenance line, never a copied email
   body. `life/wiki/people/<name>.md` is the substrate for meeting prep, occasions
   and last-contact; it is not an area and has no weekly section.
-- **`life/registers/<kind>/<slug>.md`**: stateful items with a lifecycle. "What needs
+- **`life/registers/<kind>/<slug>.md`** (kind singular: `goal`, `commitment`, ...): stateful items with a lifecycle. "What needs
   attention and where it stands." Base schema (`status`, `review_by`, `area`,
   `source`, `related`, `sensitivity` optional) plus two or three fields per kind.
   Status changes append to a `## History` section, never overwrite.
@@ -154,20 +154,22 @@ gogos/                        TRACKED. Python. Intake + Execution engines. Teste
 life/                         the memory
   inbox/     GITIGNORED. digests from connectors (may contain mail bodies) + drops
   wiki/      TRACKED.  <area>/<subject>.md, people/<name>.md
-  registers/ TRACKED.  goals/ commitments/ waiting/ renewals/ occasions/ decisions/ parked/
+  registers/ TRACKED.  goal/ commitment/ waiting/ renewal/ occasion/ decision/ parked/  (kind singular)
   journal/   TRACKED.  YYYY-MM-DD.jsonl
   workspaces/TRACKED.  <slug>/
   reports/   TRACKED.  start-day/ end-day/ weekly/   (dated + latest-*)
-.core/                        GITIGNORED. machine plumbing
-  config/    accounts.json gmail/ calendar/
-  storage/   raw/slim JSON, approvals/, ledgers
+.core/                        machine plumbing
+  config/    TRACKED (decoupled config: categories, classifier lists, rubric, feeds);
+             secrets/ and accounts.json GITIGNORED
+  storage/   GITIGNORED. raw/slim JSON, approvals/, ledgers
 docs/        ARCHITECTURE.md LEARNINGS.md CHANGELOG.md
 ```
 
 **Decoupling, as three checks the health check runs:** the system (`gogos/`,
 `.claude/`, `docs/`) contains no personal fact (could it ship verbatim to someone
 else?); the system runs against an empty `life/` and `me/` (packaging smoke test);
-nothing under `life/inbox/` or `.core/` is ever tracked (assertion, not convention).
+nothing under `life/inbox/`, `.core/storage/` or `.core/config/secrets/` is ever tracked
+(assertion, not convention; amended 2026-10-24: `.core/config/` is tracked config).
 `life/` can later become its own nested private repo without touching the system.
 
 ## 6. The loops
@@ -224,7 +226,7 @@ Optional area seats with `--seats +finance,+wellness,+family`. The Steward state
    the decision required; the review date; what the council could not see. The Chair
    may not report consensus that was not there.
 5. **Record**: `life/workspaces/<slug>/council-YYYY-MM-DD.md`. On "decided", a
-   `registers/decisions/` item with the success signal and `review_by`.
+   `registers/decision/` item with the success signal and `review_by`.
 
 **`/brainstorm`**: same seats, options instead of positions; the Chair dedups and
 groups, ranks nothing, lists the question each option raises. Writes to the
@@ -333,7 +335,7 @@ the last slice, once the rest of the grid is running.
 
 | Question | Decision |
 |---|---|
-| Track `me/` and `life/`? | Yes, everything in git in one private repo, provided the system stays decoupled (§5 checks). `life/inbox/` and `.core/` are the gitignored exceptions. |
+| Track `me/` and `life/`? | Yes, everything in git in one private repo, provided the system stays decoupled (§5 checks). `life/inbox/`, `.core/storage/` and `.core/config/secrets/` are the gitignored exceptions (amended 2026-10-24: `.core/config/` is tracked config). |
 | Email bodies and Google access | Adopt the ClientOS `gog` connectors including bodies; edit access via `gmail.modify` behind the existing gate (§9). |
 | Council seats | Strategist, Skeptic, Operator, Steward, Historian; optional area seats. |
 | Areas | Wellness · Finance · Growth · Family (incl. pets) · Home (incl. car, pool, documents) · Work (thin, bridged). |
