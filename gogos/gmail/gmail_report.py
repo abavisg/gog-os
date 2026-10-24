@@ -15,17 +15,13 @@ unless called with auto_open=False (the scheduled run must never pop a browser).
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, local_tz, now_utc, storage_path
-
-_LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
 _REPORT_CONFIG_PATH = Path(__file__).parents[2] / ".core/config/gmail/report.json"
 
 # Category display metadata: emoji + short label
@@ -75,7 +71,7 @@ def _sender_short(sender: str) -> str:
 def _date_short(iso: str) -> str:
     """Format ISO-8601 date as 'DD Mon HH:MM'."""
     try:
-        dt = datetime.fromisoformat(iso).astimezone(_LOCAL_TZ)
+        dt = datetime.fromisoformat(iso).astimezone(local_tz())
         return dt.strftime("%-d %b %H:%M")
     except (ValueError, OSError):
         return iso[:10] if iso else ""

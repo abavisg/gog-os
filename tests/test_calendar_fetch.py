@@ -237,3 +237,19 @@ def test_fetch_no_write_api_calls(tmp_path, monkeypatch):
     assert not hasattr(events_mock, "insert") or not events_mock.insert.called
     assert not hasattr(events_mock, "update") or not events_mock.update.called
     assert not hasattr(events_mock, "delete") or not events_mock.delete.called
+
+
+def test_resolve_period_uses_gogos_timezone_at_call_time(monkeypatch):
+    """23:30 UTC on 06-29 is 06-30 in London but still 06-29 in New York."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import gogos.paths as paths_mod
+    from gogos.calendar.calendar_fetch import _resolve_period
+
+    monkeypatch.setattr(paths_mod, "now_utc",
+                        lambda: datetime(2026, 6, 29, 23, 30, tzinfo=ZoneInfo("UTC")))
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    assert _resolve_period("today")[0] == "2026-06-30T00:00:00+01:00"
+    monkeypatch.setenv("GOGOS_TIMEZONE", "America/New_York")
+    assert _resolve_period("today")[0] == "2026-06-29T00:00:00-04:00"

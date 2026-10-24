@@ -710,3 +710,12 @@ def test_html_digest_appears_before_first_category_section(tmp_path):
     html = m.render_html_report(_triage_data(), _slim_data(), tp, sp,
                                 generated_at="2026-07-01T12:00:00+01:00")
     assert html.index('<div class="digest">') < html.index('<section class="category">')
+
+
+def test_date_short_reads_gogos_timezone_at_call_time(monkeypatch):
+    from gogos.gmail.gmail_report import _date_short
+
+    monkeypatch.setenv("GOGOS_TIMEZONE", "America/New_York")
+    assert _date_short("2026-06-29T14:00:00+00:00") == "29 Jun 10:00"
+    monkeypatch.setenv("GOGOS_TIMEZONE", "Europe/London")
+    assert _date_short("2026-06-29T14:00:00+00:00") == "29 Jun 15:00"

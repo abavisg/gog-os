@@ -10,16 +10,12 @@ Safety: no Calendar API calls, no write-back, no auto-open.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from gogos.auth.accounts import resolve_account
 from gogos.paths import latest_alias, local_tz, now_utc, storage_path
-
-_LOCAL_TZ = ZoneInfo(os.environ.get("GOGOS_TIMEZONE", "Europe/London"))
 
 
 def _now_local() -> str:
@@ -33,7 +29,7 @@ def _parse_local(dt_str: str) -> str:
     try:
         dt = datetime.fromisoformat(dt_str)
         if dt.tzinfo is not None:
-            return dt.astimezone(_LOCAL_TZ).strftime("%H:%M")
+            return dt.astimezone(local_tz()).strftime("%H:%M")
         return dt_str
     except Exception:
         return dt_str
