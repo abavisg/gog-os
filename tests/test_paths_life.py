@@ -48,8 +48,9 @@ def test_storage_helpers_re_exported():
 
 
 def _check_ignore(rel: str) -> int:
+    # --no-index so tracked paths are judged by the rules alone.
     return subprocess.run(
-        ["git", "check-ignore", "-q", rel], cwd=paths.REPO_ROOT,
+        ["git", "check-ignore", "-q", "--no-index", rel], cwd=paths.REPO_ROOT,
         capture_output=True,
     ).returncode
 
@@ -60,7 +61,8 @@ def _check_ignore(rel: str) -> int:
 def test_gitignore_boundary():
     # Reads only the repo's .gitignore rules; no file is created or opened.
     assert _check_ignore("life/inbox/x") == 0
-    assert _check_ignore(".core/x") == 0
+    assert _check_ignore(".core/storage/x") == 0
+    assert _check_ignore(".core/config/gmail/categories.json") == 1
     assert _check_ignore("life/wiki/x") == 1
     assert _check_ignore("life/registers/goal/x.md") == 1
     assert _check_ignore("me/profile.md") == 1
