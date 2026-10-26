@@ -6,7 +6,6 @@ __pycache__/
 .core/config/secrets/
 .core/config/accounts.json
 .core/storage/
-/.core/
 /life/inbox/
 .obsidian/
 credentials.json

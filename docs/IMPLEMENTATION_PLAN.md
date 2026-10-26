@@ -117,7 +117,7 @@ feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond 
 - Tests passing (421/421).
 
 ### v2 slice 2: memory substrate (`docs/specs/02-memory-substrate.md`)
-- Paths and skeletons: `gogos/core/paths.py` adds `LIFE_ROOT`, `ME_ROOT` and the inbox, wiki, registers, journal, workspace and reports helpers; `life/` and `me/` are tracked, `/life/inbox/` and `/.core/` are gitignored.
+- Paths and skeletons: `gogos/core/paths.py` adds `LIFE_ROOT`, `ME_ROOT` and the inbox, wiki, registers, journal, workspace and reports helpers; `life/` and `me/` are tracked, `/life/inbox/` is gitignored and `.core/config/` stays tracked (spec 2 as amended in PR #18).
 - Registers: `gogos/core/registers.py` validates the seven kinds on the base front matter schema, appends `## History` lines, derives moved_count, days_overdue, renegotiate, ignored, idle and at_risk from history, and writes `registers/<kind>/_index.md` plus `registers/_index.json`.
 - Journal and `/log`: `gogos/core/journal.py` appends ULID-keyed events in one `O_APPEND` write; `/log` infers the area where the type settles it, and `waiting` and `commitment` entries create register items.
 - `me/`: `profile.md` (validation log, every row provisional), `areas.json` (the six areas) and `themes.md`, placeholders only.
