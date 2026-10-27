@@ -1,12 +1,13 @@
 # Incremental Implementation Plan
 
-> **2026-10-23: v2 re-architecture.** The NEXT section below (Phases 5–9) is superseded by
-> `docs/REARCHITECTURE-PROPOSAL.md` and the slice specs in `docs/specs/`. DONE stays accurate.
-> This file will be rewritten when spec 8 (governance) lands.
+This file is the source of truth for what is built and what comes next (the README
+table can lag). Since 2026-10-23 the work is organised as the v2 build slices in
+`docs/specs/README.md`; the design they build is `docs/ARCHITECTURE.md`. The v1
+phases under DONE are kept as the record of what the slices build on.
 
 ## Rule
 
-Build one module at a time. No dashboard. No write-back until read-only workflows are proven.
+One slice at a time, one PR per slice. A slice is done when pytest and `run-tests.sh` are green, `health-check.sh` passes, the spec's acceptance criteria are ticked in the PR, and its entry moves here. No write-back until the read-only path is proven.
 
 ---
 
@@ -126,74 +127,40 @@ feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond 
 - Docs: this entry and the CLAUDE.md pointer to `life/`, `me/` and `/log`.
 - Tests passing (569/569).
 
+### v2 slice 8: governance (`docs/specs/08-governance.md`)
+- Permissions: `.claude/settings.json` carries the deny / ask / allow arrays and the autoMode prose (direct `gog`, Google API calls, credential stores and non-PR GitHub writes denied; push, `rm`, the PR flow and Gmail write-back ask). `settings.local.json` is gitignored and untracked; its allow rules were folded in. `permission-check.sh` copied from ClientOS.
+- Health check: `.claude/scripts/health-check.sh` (SYSTEM S1 to S8 gate the exit code; LIFE L1 to L8 advisory); the LIFE half and S6 in `gogos/core/health.py`; L3 is `registers.validate_all()` (`registers validate`).
+- Bash tests: `.claude/scripts/run-tests.sh`, one synthetic violation per SYSTEM check, LIFE and banner cases, fixture hygiene.
+- Learning loop: `/learn`, `/health` and `docs/LEARNINGS.md`, written only through `gogos/core/learnings.py`.
+- Banner: `.claude/scripts/banner.sh` replaces the start-day nudge as the SessionStart hook.
+- Decoupling: S4 found the owner's alias and address in eight command examples; replaced with placeholders.
+- CI runs `health-check.sh --system` after ruff and pytest.
+- Docs: ARCHITECTURE.md v2 with a Decisions log, this plan, README, SECURITY.md, the proposal banner.
+- Tests passing (pytest 594/594, run-tests 37/37).
+
 ---
 
 ## NEXT
 
-### Phase 5 — TaskOS Local MVP
+The remaining v2 slices, in dependency order. Each spec has its scope, acceptance
+criteria and tests.
 
-Local-first task store: no external service, no write-back gate needed (all data is
-local). Follows the module shape — `add` / `list` / `update` functions + `__main__` CLI,
-each tested — and the storage convention (dated file **and** a `latest-*` alias).
+| Slice | Spec | Depends on | What it brings |
+|---|---|---|---|
+| 3 | [Intake via gog](specs/03-intake-via-gog.md) | 2 | `gog` connectors replace the Python Google client; digests in `life/inbox/`; `/sync`; fetch-only launchd job; apply engine via `gog gmail batch modify` |
+| 4 | [Intelligence core](specs/04-intelligence-core.md) | 2, 3 | rules file, three agents, `wiki-update`, `register-update`, `/process-inbox` |
+| 5 | [Daily loop](specs/05-daily-loop.md) | 2, 3, 4 | `/start-day` over the grid, `/end-day`, `/weekly-review` |
+| 6 | [Wellness](specs/06-wellness.md) | 2, 5 | five `/log` types in use, two habit goals, Wellness first in the weekly review |
+| 7 | [Council](specs/07-council.md) | 2, 4 | Chair and five seats, `/council`, `/brainstorm` |
+| 9 | [Home and Family services](specs/09-home-and-family-services.md) | 3, 4, 5 | renewals from the classifier, occasions, last-contact, workspace template |
+| 10 | [ClientOS bridge](specs/10-clientos-bridge.md) | 5 | deferred; the spec is open questions |
+| 11 | [Further intake](specs/11-further-intake.md) | per source | Apple Health, WhatsApp, finance feeds, each earned by a real need |
 
-Modules:
-- `gogos/tasks/task_store.py` — the store. A task is `{id, title, status, created_utc,
-  updated_utc, due, tags, history[]}`; status ∈ `open | done | dropped`. Append-safe
-  creation (new task never rewrites existing ones); every status change appends to
-  `history[]` with a UTC timestamp rather than overwriting — status updates preserve
-  history. Tasks persist to `.core/storage/tasks/<account-or-local>/tasks.jsonl`
-  (append-only) with a derived `latest-open.json` slim projection for consumers.
-- `gogos/tasks/task_report.py` — renders today's / open tasks to Markdown (mirrors the
-  existing `*_report.py` shape). No skill needed for the MVP — deterministic listing.
-
-Commands:
-- `/task-add <title> [--due YYYY-MM-DD] [--tag ...]` — append a new open task.
-- `/tasks-today` — list open tasks (due today or overdue first, then undated).
-- `/task-done <id>` — mark done; appends to history, refreshes `latest-open.json`.
-
-Acceptance criteria:
-- Append-safe creation, status updates preserve history (nothing is ever rewritten in
-  place; `history[]` is the audit trail).
-- `latest-open.json` slim projection stays current after every mutation, so the morning
-  brief (Phase 6) can read open tasks without parsing the full JSONL.
-- Timestamps stored UTC, rendered local at report time (per storage conventions).
-- Tests under `tests/test_tasks_*.py` cover: append-only creation, history preservation
-  on `done`/`dropped`, and the `latest-open.json` projection.
-
-### Phase 6 — BriefingOS MVP
-
-Build `/morning-brief` aggregating latest EmailOS, CalendarOS, and TaskOS outputs.
-
-Acceptance criteria:
-- One useful brief with priorities, schedule, email actions, risks.
-- Missing modules handled gracefully.
-- Cites source artefacts.
-
-### Phase 7 — ActivityOS MVP
-
-Build `/log [type] [text]` writing to dated JSONL. Types: activity, decision, learning, workout, content, note.
-
-Acceptance criteria:
-- Append-only. Timestamped. Consumable by ReflectionOS.
-
-### Phase 8 — ReflectionOS MVP
-
-Build `/end-day` and `/weekly-review` reading daily logs and morning brief.
-
-Acceptance criteria:
-- Completed / slipped / decisions / follow-ups / tomorrow seed list.
-
-### Phase 9 — NewsOS MVP
-
-Build `/news-brief [feed]` from configured feeds. Manual source first, automated later.
-
-Acceptance criteria:
-- Source-linked, relevance-scored, low volume.
+Next up: **slice 3**.
 
 ---
 
 ## LATER
 
-Phases 10–11 (LearningOS, HealthOS, ContentOS Bridge) only after the Morning Brief and Reflection loops have been running usefully for at least two weeks.
-
-Phase 12 (Dashboard) only if the command-line loop proves insufficient.
+A dashboard only if the command-line loop proves insufficient. Versioned releases,
+tags and migrations once a second machine depends on the repo.

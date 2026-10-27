@@ -1,5 +1,9 @@
 # GogOS v2: re-architecture proposal
 
+> **Historical record.** The standing description is now [ARCHITECTURE.md](ARCHITECTURE.md)
+> (v2, with a dated Decisions log). This proposal is kept as written, with the
+> amendments noted inline, and is no longer updated.
+
 Status: **proposal with decisions recorded, 2026-10-23**. Nothing here is built.
 ClientOS (v1.20.2) is the reference and is not modified;
 only GogOS changes. Open questions from the first draft were settled with the owner
