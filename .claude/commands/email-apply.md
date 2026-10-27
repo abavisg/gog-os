@@ -28,7 +28,7 @@ different folder at any time.
 
 ## Account argument
 
-Optional `account` — an alias (e.g. `abavisg`) or a full email. Resolved to the
+Optional `account` — an alias (e.g. `personal`) or a full email. Resolved to the
 canonical email before use. If omitted, the default account is used.
 
 ## Prerequisite

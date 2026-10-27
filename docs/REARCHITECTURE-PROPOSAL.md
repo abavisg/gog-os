@@ -1,7 +1,7 @@
 # GogOS v2: re-architecture proposal
 
 Status: **proposal with decisions recorded, 2026-10-23**. Nothing here is built.
-ClientOS (`Amplivibes/client-os`, v1.20.2) is the reference and is not modified;
+ClientOS (v1.20.2) is the reference and is not modified;
 only GogOS changes. Open questions from the first draft were settled with the owner
 on 2026-10-23 and are recorded in §12.
 

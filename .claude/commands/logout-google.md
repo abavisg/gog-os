@@ -3,7 +3,7 @@
 Model: Claude Sonnet 4.6
 
 Purpose: delete the stored local Google token for the selected account, after explicit confirmation.
-The `account` argument can be an alias (e.g. `abavisg`) or full email (e.g. `abavisg@gmail.com`).
+The `account` argument can be an alias (e.g. `personal`) or full email (e.g. `you@example.com`).
 
 ## Steps
 

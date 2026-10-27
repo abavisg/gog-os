@@ -4,14 +4,14 @@ Model: Sonnet (default — unpinned, tracks current Sonnet)
 
 Purpose: authenticate a Google account using the local OAuth desktop flow and store the token.
 Scopes: `gmail.modify` (label + archive, never delete) and `calendar.readonly`.
-The `account` argument can be an alias (e.g. `abavisg`) or a full email (e.g. `abavisg@gmail.com`).
+The `account` argument can be an alias (e.g. `personal`) or a full email (e.g. `you@example.com`).
 
 ## Steps
 
 1. Read the `account` argument from `$ARGUMENTS`. If empty, print:
    ```
    Usage: /login-google <alias-or-email>
-   Examples: /login-google abavisg   or   /login-google abavisg@gmail.com
+   Examples: /login-google personal   or   /login-google you@example.com
    ```
    and stop.
 

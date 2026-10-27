@@ -8,7 +8,7 @@ Purpose: register a new account alias→email mapping in `.core/config/accounts.
    If either is missing, print:
    ```
    Usage: /account-add <alias> <email>
-   Example: /account-add abavisg abavisg@gmail.com
+   Example: /account-add personal you@example.com
    ```
    and stop.
 
