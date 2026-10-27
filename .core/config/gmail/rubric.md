@@ -4,7 +4,7 @@ Classify from sender, subject, date, labels, and snippet only unless full-body m
 
 ## Rules
 
-- Prefer Action when the email asks Giorgos to do something.
+- Prefer Action when the email asks the owner to do something.
 - Prefer Events for invitations, bookings, appointments, travel, tickets, or schedule changes.
 - Prefer Review when the email may matter but action is unclear.
 - Prefer Information when it is useful but passive.

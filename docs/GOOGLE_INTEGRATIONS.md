@@ -37,7 +37,7 @@ Normalised record (`gmail_normalise` is authoritative):
   "thread_id": "gmail-thread-id",
   "account": "personal",
   "from": "Sender <sender@example.com>",
-  "to": "Giorgos <giorgos@example.com>",
+  "to": "Owner <owner@example.com>",
   "subject": "Subject",
   "date": "2026-06-04T08:10:00+00:00",
   "snippet": "Short Gmail snippet",

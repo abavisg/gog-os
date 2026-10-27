@@ -3,6 +3,6 @@
   "default": "you@example.com",
   "aliases": {
     "personal": "you@example.com",
-    "work": "you@company.com"
+    "work": "you@example.org"
   }
 }

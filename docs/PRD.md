@@ -30,7 +30,7 @@ If a feature does not serve this loop, it should not be built yet.
 
 ## 4. Target User
 
-Primary user: Giorgos.
+Primary user: the owner.
 
 Characteristics:
 

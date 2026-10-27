@@ -61,20 +61,20 @@ def test_cmd_add_success(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "_config_path", lambda: cfg_file)
 
     from gogos.auth.account_mgmt import cmd_add
-    rc = cmd_add(["abavisg", "abavisg@gmail.com"])
+    rc = cmd_add(["alpha", "someone@example.com"])
     assert rc == 0
     data = json.loads(cfg_file.read_text())
-    assert data["aliases"]["abavisg"] == "abavisg@gmail.com"
+    assert data["aliases"]["alpha"] == "someone@example.com"
 
 
 def test_cmd_add_duplicate_alias_exits_nonzero(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     cfg_file = tmp_path / "accounts.json"
-    cfg_file.write_text(json.dumps(_config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com")))
+    cfg_file.write_text(json.dumps(_config_with({"alpha": "someone@example.com"}, "someone@example.com")))
     monkeypatch.setattr(m, "_config_path", lambda: cfg_file)
 
     from gogos.auth.account_mgmt import cmd_add
-    rc = cmd_add(["abavisg", "other@gmail.com"])
+    rc = cmd_add(["alpha", "other@gmail.com"])
     assert rc == 1
 
 
@@ -90,14 +90,14 @@ def test_cmd_add_wrong_arg_count(monkeypatch, tmp_path):
 def test_cmd_remove_success(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     cfg_file = tmp_path / "accounts.json"
-    cfg_file.write_text(json.dumps(_config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com")))
+    cfg_file.write_text(json.dumps(_config_with({"alpha": "someone@example.com"}, "someone@example.com")))
     monkeypatch.setattr(m, "_config_path", lambda: cfg_file)
 
     from gogos.auth.account_mgmt import cmd_remove
-    rc = cmd_remove(["abavisg"])
+    rc = cmd_remove(["alpha"])
     assert rc == 0
     data = json.loads(cfg_file.read_text())
-    assert "abavisg" not in data["aliases"]
+    assert "alpha" not in data["aliases"]
 
 
 def test_cmd_remove_nonexistent_exits_nonzero(monkeypatch, tmp_path):
@@ -158,8 +158,8 @@ def test_cmd_list_shows_entries(monkeypatch, tmp_path, capsys):
     import gogos.auth.accounts as m
     cfg_file = tmp_path / "accounts.json"
     cfg_file.write_text(json.dumps(_config_with(
-        {"abavisg": "abavisg@gmail.com"},
-        "abavisg@gmail.com",
+        {"alpha": "someone@example.com"},
+        "someone@example.com",
     )))
     monkeypatch.setattr(m, "_config_path", lambda: cfg_file)
 
@@ -167,6 +167,6 @@ def test_cmd_list_shows_entries(monkeypatch, tmp_path, capsys):
     rc = cmd_list([])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "abavisg" in out
-    assert "abavisg@gmail.com" in out
+    assert "alpha" in out
+    assert "someone@example.com" in out
     assert "*" in out  # default marker
