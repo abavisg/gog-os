@@ -2,7 +2,7 @@
   "categories": [
     {
       "name": "Action",
-      "description": "Requires Giorgos to do something, reply, decide, approve, review, pay, sign, or schedule."
+      "description": "Requires the owner to do something, reply, decide, approve, review, pay, sign, or schedule."
     },
     {
       "name": "Review",

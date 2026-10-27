@@ -62,26 +62,26 @@ def _config_with(aliases: dict, default: str | None = None) -> dict:
 
 def test_resolve_alias_returns_email(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
-    _patch_config(monkeypatch, tmp_path, _config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com"))
-    assert m.resolve_account("abavisg") == "abavisg@gmail.com"
+    _patch_config(monkeypatch, tmp_path, _config_with({"alpha": "someone@example.com"}, "someone@example.com"))
+    assert m.resolve_account("alpha") == "someone@example.com"
 
 
 def test_resolve_raw_email_registered(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
-    _patch_config(monkeypatch, tmp_path, _config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com"))
-    assert m.resolve_account("abavisg@gmail.com") == "abavisg@gmail.com"
+    _patch_config(monkeypatch, tmp_path, _config_with({"alpha": "someone@example.com"}, "someone@example.com"))
+    assert m.resolve_account("someone@example.com") == "someone@example.com"
 
 
 def test_resolve_raw_email_unregistered_raises_when_accounts_exist(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
-    _patch_config(monkeypatch, tmp_path, _config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com"))
+    _patch_config(monkeypatch, tmp_path, _config_with({"alpha": "someone@example.com"}, "someone@example.com"))
     with pytest.raises(ValueError, match="not registered"):
         m.resolve_account("other@example.com")
 
 
 def test_resolve_unknown_alias_raises(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
-    _patch_config(monkeypatch, tmp_path, _config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com"))
+    _patch_config(monkeypatch, tmp_path, _config_with({"alpha": "someone@example.com"}, "someone@example.com"))
     with pytest.raises(ValueError, match="Unknown account"):
         m.resolve_account("nobody")
 
@@ -95,8 +95,8 @@ def test_resolve_first_run_bootstrap(monkeypatch, tmp_path):
 
 def test_resolve_unknown_alias_hints_known_aliases(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
-    _patch_config(monkeypatch, tmp_path, _config_with({"abavisg": "abavisg@gmail.com"}, "abavisg@gmail.com"))
-    with pytest.raises(ValueError, match="abavisg"):
+    _patch_config(monkeypatch, tmp_path, _config_with({"alpha": "someone@example.com"}, "someone@example.com"))
+    with pytest.raises(ValueError, match="alpha"):
         m.resolve_account("typo")
 
 
@@ -124,12 +124,12 @@ def test_validate_account_raises_on_unknown(monkeypatch, tmp_path):
 def test_known_accounts_from_config(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     _patch_config(monkeypatch, tmp_path, _config_with(
-        {"abavisg": "abavisg@gmail.com", "karehero": "g@karehero.com"},
-        "abavisg@gmail.com",
+        {"alpha": "someone@example.com", "beta": "other@example.org"},
+        "someone@example.com",
     ))
     accounts = m.known_accounts()
-    assert "abavisg@gmail.com" in accounts
-    assert "g@karehero.com" in accounts
+    assert "someone@example.com" in accounts
+    assert "other@example.org" in accounts
 
 
 def test_known_accounts_deduplicates(monkeypatch, tmp_path):
@@ -183,17 +183,17 @@ def test_default_account_first_known_fallback(monkeypatch, tmp_path):
 def test_add_account_new(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     _patch_config(monkeypatch, tmp_path, _config_with({}))
-    m.add_account("abavisg", "abavisg@gmail.com")
+    m.add_account("alpha", "someone@example.com")
     cfg = m.load_accounts_config()
-    assert cfg["aliases"]["abavisg"] == "abavisg@gmail.com"
+    assert cfg["aliases"]["alpha"] == "someone@example.com"
 
 
 def test_add_account_sets_default_when_first(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     _patch_config(monkeypatch, tmp_path, _config_with({}))
-    m.add_account("abavisg", "abavisg@gmail.com")
+    m.add_account("alpha", "someone@example.com")
     cfg = m.load_accounts_config()
-    assert cfg["default"] == "abavisg@gmail.com"
+    assert cfg["default"] == "someone@example.com"
 
 
 def test_add_account_does_not_overwrite_default(monkeypatch, tmp_path):
@@ -327,13 +327,13 @@ def test_rename_alias_nonexistent_raises(monkeypatch, tmp_path):
 def test_list_accounts_marks_default(monkeypatch, tmp_path):
     import gogos.auth.accounts as m
     _patch_config(monkeypatch, tmp_path, _config_with(
-        {"abavisg": "abavisg@gmail.com", "karehero": "g@karehero.com"},
-        "abavisg@gmail.com",
+        {"alpha": "someone@example.com", "beta": "other@example.org"},
+        "someone@example.com",
     ))
     entries = m.list_accounts()
     defaults = [e for e in entries if e["default"]]
     assert len(defaults) == 1
-    assert defaults[0]["email"] == "abavisg@gmail.com"
+    assert defaults[0]["email"] == "someone@example.com"
 
 
 def test_list_accounts_sorted_by_alias(monkeypatch, tmp_path):

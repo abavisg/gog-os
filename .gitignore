@@ -6,8 +6,10 @@ __pycache__/
 .core/config/secrets/
 .core/config/accounts.json
 .core/storage/
+.claude/settings.local.json
 /life/inbox/
 .obsidian/
 credentials.json
 *token*.json
 *.egg-info/
+tests/fixtures/forbidden-terms.txt

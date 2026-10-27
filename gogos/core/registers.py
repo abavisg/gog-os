@@ -47,8 +47,10 @@ Entry points:
   nudge(path) -> int
   derived(item, items=None, today=None) -> dict
   index() -> Path                               registers/<kind>/_index.md + registers/_index.json
+  validate_all() -> (count, [RegisterError])    every item checked; nothing written
 
   python -m gogos.core.registers index
+  python -m gogos.core.registers validate [--life DIR]
   python -m gogos.core.registers list <kind>
   python -m gogos.core.registers create <kind> --title T --area A [--<field> V ...]
   python -m gogos.core.registers status <path> <status> [--note N]
@@ -574,6 +576,29 @@ def _check_references(items: list[Item]) -> None:
             raise RegisterError(i.path, "goal", f"no goal '{i.meta['goal']}' in registers/goal/")
 
 
+def validate_all() -> tuple[int, list[RegisterError]]:
+    """Check every item and the goal references without writing anything.
+
+    Unlike load(), it does not stop at the first bad file: the health check
+    (L3) reports every finding in one run.
+    """
+    items: list[Item] = []
+    errors: list[RegisterError] = []
+    count = 0
+    for kind in KINDS:
+        for p in _item_paths(kind):
+            count += 1
+            try:
+                items.append(load_item(p))
+            except RegisterError as exc:
+                errors.append(exc)
+    try:
+        _check_references(items)
+    except RegisterError as exc:
+        errors.append(exc)
+    return count, errors
+
+
 def _review_key(rec: dict) -> tuple:
     rb = rec["review_by"]
     return (rb == "none", rb, rec["ref"])
@@ -673,6 +698,7 @@ def _parse_flags(args: list[str]) -> dict:
 
 _USAGE = """usage:
   python -m gogos.core.registers index
+  python -m gogos.core.registers validate [--life DIR]
   python -m gogos.core.registers list <kind>
   python -m gogos.core.registers create <kind> --title T --area A [--<field> V ...]
   python -m gogos.core.registers status <path> <status> [--note N]
@@ -689,6 +715,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if cmd == "index":
             print(f"OK  {paths.rel_ref(index())}")
+        elif cmd == "validate" and len(rest) in (0, 2):
+            if rest:
+                if rest[0] != "--life":
+                    print(_USAGE, file=sys.stderr)
+                    return 2
+                paths.LIFE_ROOT = Path(rest[1]).resolve()
+            count, errors = validate_all()
+            for exc in errors:
+                print(f"ERROR {exc}", file=sys.stderr)
+            if errors:
+                return 1
+            print(f"OK  {count} register items valid")
         elif cmd == "list" and len(rest) == 1:
             if rest[0] not in STATUSES:
                 print(f"ERROR unknown register kind '{rest[0]}' "

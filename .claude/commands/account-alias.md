@@ -7,7 +7,7 @@ Purpose: rename an existing alias. The email it points to is unchanged.
 1. Parse `current-alias` and `new-alias` from `$ARGUMENTS`. If either is missing:
    ```
    Usage: /account-alias <current-alias> <new-alias>
-   Example: /account-alias abavisg personal
+   Example: /account-alias old-name personal
    ```
    and stop.
 

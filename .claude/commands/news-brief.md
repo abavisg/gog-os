@@ -17,4 +17,4 @@ Rules:
 - Prioritise relevance over volume.
 - Include source links and dates.
 - Avoid generic summaries.
-- Explain why each item matters to Giorgos.
+- Explain why each item matters to the owner.

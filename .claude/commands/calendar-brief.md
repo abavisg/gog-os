@@ -7,7 +7,7 @@ and display a readable brief. Read-only only. No write-back to Google Calendar.
 
 ## Arguments
 
-- `account`: alias (e.g. `abavisg`) or full email (e.g. `abavisg@gmail.com`).
+- `account`: alias (e.g. `personal`) or full email (e.g. `you@example.com`).
   Resolved to canonical email before use. Defaults to the configured default account.
 - `period`: `today`, `tomorrow`, or `week` (default: `today`)
 

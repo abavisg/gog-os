@@ -64,7 +64,7 @@ def test_civic_is_action():
 
 def test_real_person_is_review_never_deleted():
     m = _reload()
-    assert _cat(m, "Kevin Galvin <kevin@gmail.com>", "Re: tournament on Saturday") == "Review"
+    assert _cat(m, "Sam Lee <sam@gmail.com>", "Re: tournament on Saturday") == "Review"
 
 
 def test_protected_signals_never_safe_to_delete():
@@ -84,7 +84,7 @@ def test_protected_signals_never_safe_to_delete():
 
 def test_calendar_invitation_is_event():
     m = _reload()
-    assert _cat(m, "Artemis <a@gmail.com>", "Invitation: ASSEMBLY @ Wed 15 Jul 2026") == "Events"
+    assert _cat(m, "Alex <a@gmail.com>", "Invitation: Team sync @ Wed 15 Jul 2026") == "Events"
 
 
 def test_event_platform_is_event():
@@ -207,7 +207,7 @@ def test_is_protected_covers_all_four_signals():
     assert m.is_protected(_msg("x@foo.io", "Security alert"), CONFIG)        # security
     assert m.is_protected(_msg("x@richmond.gov.uk", "Annual canvass"), CONFIG)  # civic
     assert m.is_protected(_msg("x@foo.io", "your invoice"), CONFIG)          # financial ask
-    assert m.is_protected(_msg("kevin@gmail.com", "hi"), CONFIG)             # real person
+    assert m.is_protected(_msg("sam@gmail.com", "hi"), CONFIG)             # real person
     assert not m.is_protected(_msg("news@foo.io", "Weekly update"), CONFIG)
 
 
@@ -257,7 +257,7 @@ def test_protected_mail_is_never_ledger_pinned():
 
     out = m.classify_messages(
         [_msg("NatWest <x@natwest.com>", "Your latest card statement is now available"),
-         _msg("Kevin <kevin@gmail.com>", "Re: Saturday", "id2")],
+         _msg("Sam <sam@gmail.com>", "Re: Saturday", "id2")],
         config=CONFIG, ledger=ledger)
     assert out["items"][0]["category"] == "Action"       # not the pinned Information
     assert out["items"][1]["category"] == "Review"

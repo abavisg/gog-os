@@ -1,0 +1,52 @@
+# Synthetic addresses the S4 address rule accepts outside example.com/.org/.net.
+# Fixtures need realistic domains (banks, gov.uk, free-mail) to exercise the
+# classifier. One address per line, lowercase. Add an address only after
+# checking it is not a real person's mailbox; the owner reviews this list.
+a@b.com
+a@gmail.com
+a@natwest.com
+acct@x.com
+b@b.com
+b@linkedin.com
+billing@mail.anthropic.com
+billing@nespresso.com
+c@tldrnewsletter.com
+cal@x.com
+d@info.national-lottery.co.uk
+dan@tldrnewsletter.com
+e@user.luma-mail.com
+ebay@ebay.com
+f@ebay.com
+jane@client.com
+jobs@linkedin.com
+me@gmail.com
+me@work.com
+me@x.com
+news@foo.io
+news@info.national-lottery.co.uk
+news@promo.example
+no-reply@accounts.google.com
+no-reply@hsbc.com
+noreply@national-lottery.co.uk
+other@b.com
+other@gmail.com
+sam@gmail.com
+someone@gmail.com
+someone@nowhere.net
+unsub@tldr.example
+unsub@x.com
+work@company.com
+x@a.com
+x@foo.io
+x@linkedin.com
+x@mail.linkedin.com
+x@natwest.com
+x@notify.foo.io
+x@richmond.gov.uk
+x@rs.email.nextdoor.co.uk
+x@some-unknown-saas.io
+x@user.luma-mail.com
+x@x.com
+x@y.com
+y@b.com
+z@b.com

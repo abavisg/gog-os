@@ -27,7 +27,7 @@ returns to the inbox. Nothing is ever deleted; this only relabels.
 
 ## Account argument
 
-Optional `account` — an alias (e.g. `abavisg`) or a full email. Resolved to the
+Optional `account` — an alias (e.g. `personal`) or a full email. Resolved to the
 canonical email before use. If omitted, the default account is used.
 
 The account's token must have the `gmail.modify` scope (the same scope apply

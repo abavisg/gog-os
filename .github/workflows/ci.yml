@@ -28,3 +28,6 @@ jobs:
 
       - name: Test
         run: pytest -q
+
+      - name: Health check (SYSTEM)
+        run: bash .claude/scripts/health-check.sh --system

@@ -73,5 +73,6 @@ Today all five skills are normal-reasoning, so none pin a model. Add a pin only 
 - New modules follow the existing shape: `fetch` → `normalise` → `report`, each tested under `tests/test_<module>_*.py`.
 - Status of modules: `docs/IMPLEMENTATION_PLAN.md` is the source of truth (the README table can lag). **Next up: the v2 build slices in `docs/specs/README.md`.**
 - EmailOS end-to-end behaviour and safety invariants: `docs/EMAILOS.md`.
+- Governance (v2): `bash .claude/scripts/health-check.sh` must exit 0 before pushing (CI runs `--system`); `/learn` records lessons and proposes changes in `docs/LEARNINGS.md`, never applying them unasked. Permissions live in the tracked `.claude/settings.json`; `settings.local.json` may hold ask and deny rules only.
 - Memory (v2): `life/` holds registers, the journal, wiki, workspaces and reports (schemas in `docs/specs/02-memory-substrate.md`, code in `gogos/core/`); `me/` holds the owner profile, areas and themes. `/log` appends to the journal and creates `waiting` and `commitment` register items.
 - Some commands (`/morning-brief`, `/end-day`, `/news-brief`) exist as stubs ahead of their backing modules; a command existing does not mean its module is built.

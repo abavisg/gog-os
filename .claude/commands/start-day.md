@@ -56,10 +56,11 @@ per-account **Queue** counts, and the source artefact paths.
 Do **not** propose or apply any moves. If the user wants to file the queue,
 point them at `/email-apply <account>` (per account, gated as always).
 
-## SessionStart nudge
+## SessionStart banner
 
-A SessionStart hook runs `python -m gogos.system.start_day --nudge`: it reads
-only local artefacts (no network) and prints a one-line offer — with counts if
-a scheduled run already triaged today, quiet if today's panel already exists.
-The hook only ever **offers** `/start-day`; it never runs the pipeline and
-never touches write-back.
+A SessionStart hook runs `.claude/scripts/banner.sh`: it reads only local files
+(no network, no Python) and prints one line with the inbox items, commitments
+due today and uncommitted files, and offers `/start-day` until today's panel
+exists. The hook only ever **offers** `/start-day`; it never runs the pipeline
+and never touches write-back. `python -m gogos.system.start_day --nudge` still
+works by hand and prints the morning's triage counts.
