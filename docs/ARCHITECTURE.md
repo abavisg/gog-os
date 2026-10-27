@@ -154,8 +154,10 @@ record in the workspace and, on "decided", a `decision` register item.
   `rm`, the PR flow and Gmail write-back; allow reads, the gogos modules, tests and
   the scripts. `settings.local.json` is gitignored and may hold only ask and deny
   rules (S8). `permission-check.sh --audit` explains the merged ruleset.
-- **Decoupling.** Nothing under `gogos/`, `.claude/` or `docs/` names a person, an
-  account or a client (S4); the system runs against an empty `life/` and `me/`
+- **Decoupling.** Nothing in the system files (`gogos/`, `.claude/`, `docs/`,
+  `tests/`, the tracked `.core/config/`, `README.md`, `CLAUDE.md`) names a person,
+  an account or a client, and every address is at an example domain or on the
+  reviewed synthetic list (S4); the system runs against an empty `life/` and `me/`
   (`run-tests.sh` baseline); nothing under `life/inbox/`, `.core/storage/`,
   `.core/config/secrets/` or `.core/config/accounts.json` is tracked (S1).
 - **Versioning.** Deferred until a second machine depends on the repo; `main` is

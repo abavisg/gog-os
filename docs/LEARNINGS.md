@@ -33,6 +33,13 @@ Newest entries on top. Each entry:
 
 ## Entries
 
+### 2026-10-27: A decoupling scan must cover every tracked system file and work with no terms
+- **Status:** applied
+- **Trigger:** PR #21 review R1 and R1b: S4 scanned gogos/, .claude/ and docs/ only, and checked zero terms in CI, so the owner's name in .core/config/ and the real address in tests/ passed
+- **Lesson:** scope the scan by what ships (tests, tracked config and root docs included), and give it a rule that needs no secret input, or CI proves nothing
+- **Proposed change:** health-check.sh S4: SYSTEM_PATHS widened; address rule with tests/fixtures/synthetic-addresses.txt; leaks replaced in config, tests and docs
+- **Resolution:** applied 2026-10-27.
+
 ### 2026-10-27: Example values in commands must be placeholders
 - **Status:** applied
 - **Trigger:** the first run of health check S4 (slice 8) found the owner's account alias and address used as examples in eight commands, and the owner's GitHub org named in the proposal.

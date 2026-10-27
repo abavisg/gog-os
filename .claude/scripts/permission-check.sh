@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copied from ClientOS (client-os, .claude/scripts/permission-check.sh); changed only by this line and the --help range.
 # .claude/scripts/permission-check.sh: would this command prompt, and which rule decides?
 #
 # READ-ONLY BY CONTRACT. This script never edits a settings file, and must not
@@ -43,7 +44,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --porcelain) PORCELAIN=1; shift ;;
     --audit)     AUDIT=1; shift ;;
-    --help|-h)   sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --help|-h)   sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     --*)         echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
     *)           CMDS="$CMDS$1"$'\n'; shift ;;
   esac

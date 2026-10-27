@@ -147,6 +147,10 @@ expect_issue "$d" "S1 1 file(s) under .core/storage are tracked" "a tracked file
 d="$(new_repo s1-cred)"
 echo '{}' > "$d/gogos/synthetic_token.json"; ( cd "$d" && git add gogos/synthetic_token.json )
 expect_issue "$d" "S1 tracked file looks like a credential" "a tracked *token* file fails S1"
+printf 'x = 1\n' > "$d/gogos/tokenizer.py"; ( cd "$d" && git add gogos/tokenizer.py )
+hc "$d" --system
+case "$OUT" in *"credential: gogos/tokenizer.py"*) bad "tokenizer.py should not look like a credential" ;;
+               *) ok "a *token* source file that is not .json passes S1" ;; esac
 
 # ===========================================================================
 group "S2 agents and skills"
@@ -183,13 +187,13 @@ expect_issue "$d" "S3 a command runs 'gogos.no_such_module'" "a command target t
 group "S4 decoupling"
 # ===========================================================================
 d="$(new_repo s4-email)"
-printf '{"version": 1, "default": "synth", "aliases": {"synth": "owner@example.test"}}\n' \
+printf '{"version": 1, "default": "synth", "aliases": {"synth": "owner@example.com"}}\n' \
   > "$d/.core/config/accounts.json"
-printf 'Write to owner@example.test for access.\n' > "$d/docs/guide.md"
+printf 'Write to owner@example.com for access.\n' > "$d/docs/guide.md"
 expect_issue "$d" "S4 docs/guide.md contains" "an account email in a docs file fails S4"
 
 d="$(new_repo s4-alias)"
-printf '{"version": 1, "default": "synthalias", "aliases": {"synthalias": "a@example.test", "personal": "b@example.test"}}\n' \
+printf '{"version": 1, "default": "synthalias", "aliases": {"synthalias": "a@example.com", "personal": "b@example.org"}}\n' \
   > "$d/.core/config/accounts.json"
 printf 'Example: /email-report synthalias\n' > "$d/.claude/commands/ex.md"
 printf 'Example: /email-report personal\n' > "$d/docs/generic.md"
@@ -208,6 +212,47 @@ d="$(new_repo s4-owner)"
 sed -i.bak 's/^validation: provisional$/owner: Placeholder Owner\nvalidation: provisional/' "$d/me/profile.md"
 printf 'Placeholder Owner wrote this.\n' > "$d/docs/x.md"
 expect_issue "$d" "S4 docs/x.md contains" "the profile owner's name in a docs file fails S4"
+
+# Leak addresses are assembled at runtime so this file never holds a literal
+# non-example address, which S4 would flag in the real repo.
+LEAK="person@""realmail.io"
+
+d="$(new_repo s4-tests)"
+printf '{"version": 1, "default": "synth", "aliases": {"synth": "owner@example.com"}}\n' \
+  > "$d/.core/config/accounts.json"
+mkdir -p "$d/tests"; printf 'ACCOUNT = "owner@example.com"\n' > "$d/tests/test_leak.py"
+expect_issue "$d" "S4 tests/test_leak.py contains" "an account email under tests/ fails S4"
+
+d="$(new_repo s4-config)"
+mkdir -p "$d/tests/fixtures" "$d/.core/config/gmail"
+printf 'Synthetic Surname\n' > "$d/tests/fixtures/forbidden-terms.txt"
+printf -- '- Prefer Action when the email asks Synthetic Surname to act.\n' > "$d/.core/config/gmail/rubric.md"
+expect_issue "$d" "S4 .core/config/gmail/rubric.md contains" "a forbidden term under .core/config/ fails S4"
+
+d="$(new_repo s4-root)"
+mkdir -p "$d/tests/fixtures"; printf 'Synthetic Surname\n' > "$d/tests/fixtures/forbidden-terms.txt"
+printf 'Built for Synthetic Surname.\n' > "$d/README.md"
+expect_issue "$d" "S4 README.md contains" "a forbidden term in the root README fails S4"
+
+d="$(new_repo s4-me)"
+mkdir -p "$d/tests/fixtures"; printf 'Synthetic Surname\n' > "$d/tests/fixtures/forbidden-terms.txt"
+printf 'Synthetic Surname decides fast.\n' >> "$d/me/profile.md"
+hc "$d" --system
+case "$OUT" in *"S4 me/"*) bad "me/ is owner content and must stay out of S4" ;;
+               *) ok "owner content under me/ is not scanned by S4" ;; esac
+
+d="$(new_repo s4-address)"
+mkdir -p "$d/tests"; printf 'SENDER = "%s"\n' "$LEAK" > "$d/tests/test_sender.py"
+hc "$d" --system
+case "$OUT" in *"ISSUE S4 tests/test_sender.py:1 has an address outside example.com"*)
+  [ "$RC" -eq 1 ] && ok "a non-example address fails S4 with no terms configured" || bad "S4 address rule exit code" ;;
+  *) bad "a non-example address should fail S4 with no terms configured" ;; esac
+case "$OUT" in *"$LEAK"*) bad "S4 must not print the address itself" ;;
+               *) ok "the address rule names file:line, never the address" ;; esac
+mkdir -p "$d/tests/fixtures"; printf '# reviewed\n%s\n' "$LEAK" > "$d/tests/fixtures/synthetic-addresses.txt"
+hc "$d" --system
+case "$OUT" in *"PASS  S4"*) ok "an address listed in synthetic-addresses.txt passes S4" ;;
+               *) bad "an allowlisted address should pass S4" ;; esac
 
 # ===========================================================================
 group "S5 tests"
@@ -329,7 +374,7 @@ case "$OUT" in *"PASS  L8"*) ok "L8 accepts a dated Amendment section" ;; *) bad
 group "banner.sh"
 # ===========================================================================
 d="$(new_repo banner)"
-( cd "$d" && git -c user.name=t -c user.email=t@example.test commit -qm init )
+( cd "$d" && git -c user.name=t -c user.email=t@example.com commit -qm init )
 TODAY="$(TZ="${GOGOS_TIMEZONE:-Europe/London}" date +%Y-%m-%d)"
 printf 'digest\n' > "$d/life/inbox/gmail-digest.md"; printf 'x\n' > "$d/life/inbox/.ledger"
 mk_commitment() { # $1=slug $2=status $3=due

@@ -34,19 +34,23 @@ nothing under any of them, so the boundary is tested, not assumed.
 | `.core/config/accounts.json` | no | maps aliases to real addresses |
 | `.claude/settings.local.json` | no | machine-local permission gates |
 | `tests/fixtures/forbidden-terms.txt` | no | the owner's real terms for the S4 scan |
-| `.core/config/` (the rest) | yes | decoupled config: categories, classifier lists, rubric, feeds |
+| `.core/config/` (the rest) | yes | decoupled config: categories, classifier lists, rubric, feeds; system, so S4 scans it |
 | `life/` (the rest), `me/` | yes | the owner's memory and profile, in the private repo |
-| `gogos/`, `.claude/`, `docs/` | yes | the system; must contain no personal fact (S4) |
+| `gogos/`, `.claude/`, `docs/`, `tests/`, `README.md`, `CLAUDE.md` | yes | the system; must contain no personal fact (S4) |
 
 Also ignored: `.env`, `credentials.json`, `*token*.json`, `.venv/`, caches.
-S1 fails if a tracked file name looks like a credential (`*token*`, `*.env`,
+S1 fails if a tracked file name looks like a credential (`*token*.json`, `*.env`,
 `credentials*`).
 
-**Decoupling.** S4 scans `gogos/`, `.claude/` and `docs/` for any address in
-`.core/config/accounts.json`, the `owner:` named in `me/profile.md`, and each term
-in `tests/fixtures/forbidden-terms.txt` (one per line; without it, the
-non-generic account aliases). Examples use `personal`, `work` and
-`you@example.com`.
+**Decoupling.** S4 scans the system files (`gogos/`, `.claude/`, `docs/`,
+`tests/`, the tracked `.core/config/`, `README.md` and `CLAUDE.md`; never `me/`)
+for any address in `.core/config/accounts.json`, the `owner:` named in
+`me/profile.md`, and each term in `tests/fixtures/forbidden-terms.txt` (one per
+line; without it, the non-generic account aliases). Independently of those terms,
+every email address must be at `example.com`, `example.org` or `example.net`, or be
+listed in the tracked, owner-reviewed `tests/fixtures/synthetic-addresses.txt`, so
+the check still bites in CI where no terms exist. Examples use `personal`, `work`
+and `you@example.com`.
 
 ## Assistant permissions
 

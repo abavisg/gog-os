@@ -321,7 +321,6 @@
       "Bash(gh issue list *)",
       "Bash(gh issue view *)",
       "Bash(gh api *)",
-      "Bash(python3 -c *)",
       "Bash(python3 -m json.tool *)",
       "Bash(python -m gogos.*)",
       "Bash(.venv/bin/python -m gogos.*)",

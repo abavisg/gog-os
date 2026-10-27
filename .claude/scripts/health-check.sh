@@ -61,14 +61,19 @@ band()      { printf '\n==== %s\n' "$1"; }
 in_git=0
 git rev-parse --git-dir >/dev/null 2>&1 && in_git=1
 
-# Files under the system directories: tracked plus untracked-but-not-ignored,
-# so a new file is checked before it is committed and gitignored local files
-# (settings.local.json) are not.
+# The system: everything that must hold no personal fact. me/ is deliberately
+# absent (owner content belongs there); .core/config/ is tracked, decoupled
+# config. Tracked plus untracked-but-not-ignored, so a new file is checked
+# before it is committed and gitignored local files (settings.local.json,
+# accounts.json, forbidden-terms.txt) are not.
+SYSTEM_PATHS="gogos .claude docs tests .core/config README.md CLAUDE.md"
 system_files() {
   if [ "$in_git" -eq 1 ]; then
-    git ls-files -co --exclude-standard -- gogos .claude docs 2>/dev/null
+    # shellcheck disable=SC2086
+    git ls-files -co --exclude-standard -- $SYSTEM_PATHS 2>/dev/null
   else
-    find gogos .claude docs -type f 2>/dev/null
+    # shellcheck disable=SC2086
+    find $SYSTEM_PATHS -type f 2>/dev/null
   fi
 }
 
@@ -99,7 +104,7 @@ if [ "$in_git" -eq 1 ]; then
   done
   while IFS= read -r f; do
     [ -n "$f" ] && sys_issue "S1 tracked file looks like a credential: $f"
-  done < <(git ls-files | grep -iE '(^|/)[^/]*token[^/]*$|(^|/)[^/]*\.env$|(^|/)credentials[^/]*$')
+  done < <(git ls-files | grep -iE '(^|/)[^/]*token[^/]*\.json$|(^|/)[^/]*\.env$|(^|/)credentials[^/]*$')
 fi
 [ "$sys_issues" -eq "$before" ] && ok "S1 private paths ignored and untracked; no credential files tracked"
 
@@ -195,9 +200,40 @@ if [ "$n_terms" -gt 0 ]; then
           done)"
   for f in $hits; do sys_issue "S4 $f contains an account email, the owner's name or a forbidden term"; done
 fi
+# Term-independent rule, so S4 still bites with no terms configured (CI, a
+# fresh clone): every address must be at example.com/.org/.net or listed in the
+# reviewed tests/fixtures/synthetic-addresses.txt. Prints file:line, never the
+# address, so a leak is not repeated into a CI log.
+while IFS= read -r hit; do
+  [ -n "$hit" ] && sys_issue "S4 $hit has an address outside example.com/.org/.net that is not in tests/fixtures/synthetic-addresses.txt"
+done < <(system_files | "$PY" -c '
+import re, sys
+from pathlib import Path
+ADDR = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+EXAMPLE = re.compile(r"@(?:[a-z0-9-]+\.)*example\.(?:com|org|net)$")
+LIST = "tests/fixtures/synthetic-addresses.txt"
+try:
+    allowed = {l.strip().lower() for l in Path(LIST).read_text().splitlines()
+               if l.strip() and not l.startswith("#")}
+except OSError:
+    allowed = set()
+for name in sys.stdin.read().splitlines():
+    if name == LIST:
+        continue
+    try:
+        lines = Path(name).read_text().splitlines()
+    except (OSError, UnicodeDecodeError):
+        continue
+    for n, line in enumerate(lines, 1):
+        for a in ADDR.findall(line):
+            a = a.lower()
+            if not EXAMPLE.search(a) and a not in allowed:
+                print(f"{name}:{n}")
+                break
+')
 [ -f tests/fixtures/forbidden-terms.txt ] \
   || sys_warn "S4 no tests/fixtures/forbidden-terms.txt; using the account aliases as the forbidden terms"
-[ "$sys_issues" -eq "$before" ] && ok "S4 no personal term in gogos/, .claude/ or docs/ ($n_terms term(s) checked)"
+[ "$sys_issues" -eq "$before" ] && ok "S4 no personal term or real address in the system files ($n_terms term(s) checked)"
 
 # --- S5. Tests ---------------------------------------------------------------
 sec "S5 tests"

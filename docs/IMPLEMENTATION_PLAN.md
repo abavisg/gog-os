@@ -133,10 +133,10 @@ feeding ReflectionOS; low-confidence "Needs-Review" as a distinct signal beyond 
 - Bash tests: `.claude/scripts/run-tests.sh`, one synthetic violation per SYSTEM check, LIFE and banner cases, fixture hygiene.
 - Learning loop: `/learn`, `/health` and `docs/LEARNINGS.md`, written only through `gogos/core/learnings.py`.
 - Banner: `.claude/scripts/banner.sh` replaces the start-day nudge as the SessionStart hook.
-- Decoupling: S4 found the owner's alias and address in eight command examples; replaced with placeholders.
+- Decoupling: S4 scans `gogos/`, `.claude/`, `docs/`, `tests/`, `.core/config/` and the root docs, plus a term-independent address rule (example domains or `tests/fixtures/synthetic-addresses.txt`). It found the owner's alias, address, first name and a client domain in commands, config, docs and test fixtures; all replaced with placeholders.
 - CI runs `health-check.sh --system` after ruff and pytest.
 - Docs: ARCHITECTURE.md v2 with a Decisions log, this plan, README, SECURITY.md, the proposal banner.
-- Tests passing (pytest 594/594, run-tests 37/37).
+- Tests passing (pytest 594/594, run-tests 45/45).
 
 ---
 

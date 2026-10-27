@@ -9,8 +9,8 @@ Read-only only. The JSON is never printed to the conversation.
 ## Account argument
 
 The optional `account` argument can be an alias (e.g. `personal`) or a full email
-(e.g. `you@example.com`). It is resolved to a canonical email before use — storage
-paths and API calls always use the email. If omitted, the default account is used.
+(e.g. `you@example.com`). It is resolved to a canonical email before use, and
+storage paths and API calls always use the email. If omitted, the default account is used.
 
 ## Window argument
 
