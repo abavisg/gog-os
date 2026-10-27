@@ -8,7 +8,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && [ -x .venv/bin/python ] && .venv/bin/python -m gogos.system.start_day --nudge || true"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/scripts/banner.sh",
+            "timeout": 5
           }
         ]
       }

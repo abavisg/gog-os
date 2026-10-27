@@ -326,6 +326,45 @@ hc "$d" --life
 case "$OUT" in *"PASS  L8"*) ok "L8 accepts a dated Amendment section" ;; *) bad "L8 should accept an Amendment" ;; esac
 
 # ===========================================================================
+group "banner.sh"
+# ===========================================================================
+d="$(new_repo banner)"
+( cd "$d" && git -c user.name=t -c user.email=t@example.test commit -qm init )
+TODAY="$(TZ="${GOGOS_TIMEZONE:-Europe/London}" date +%Y-%m-%d)"
+printf 'digest\n' > "$d/life/inbox/gmail-digest.md"; printf 'x\n' > "$d/life/inbox/.ledger"
+mk_commitment() { # $1=slug $2=status $3=due
+  printf -- '---\ntitle: Synthetic %s\ntype: register\nstatus: %s\narea: home\ncreated: 2026-01-01\nupdated: 2026-01-01\ntags: []\nregister: commitment\nreview_by: none\nsource: none\nrelated: []\ndue: %s\ngoal: none\nnudge_count: 0\n---\n' \
+    "$1" "$2" "$3" > "$d/life/registers/commitment/$1.md"
+}
+mk_commitment due-today open "\"${TODAY}T17:00\""
+mk_commitment kept-today kept "$TODAY"
+mk_commitment later open 2999-01-01
+printf 'scratch\n' > "$d/docs/new.md"
+BOUT="$( cd "$d" && bash .claude/scripts/banner.sh )"
+case "$BOUT" in *"◇ GogOS · 1 inbox item · 1 commitment due today · 4 uncommitted · run /start-day?"*)
+  ok "banner counts inbox items, open commitments due today and uncommitted files" ;;
+  *) bad "banner line wrong: $BOUT" ;; esac
+printf '%s' "$BOUT" | "$PY" -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null \
+  && ok "banner output is valid hook JSON" || bad "banner output is not valid JSON"
+mkdir -p "$d/life/reports/start-day/$TODAY" && printf 'x\n' > "$d/life/reports/start-day/$TODAY/start-day.md"
+BOUT="$( cd "$d" && bash .claude/scripts/banner.sh )"
+case "$BOUT" in *"/start-day"*) bad "banner should stop offering /start-day once today's report exists" ;;
+  *) ok "banner stops offering /start-day once today's report exists" ;; esac
+ms="$("$PY" -c 'import subprocess, sys, time
+best = 1e9
+for _ in range(3):
+    t = time.perf_counter()
+    subprocess.run(["bash", ".claude/scripts/banner.sh"], cwd=sys.argv[1], capture_output=True)
+    best = min(best, time.perf_counter() - t)
+print(int(best * 1000))' "$d")"
+[ "$ms" -lt 200 ] && ok "banner prints in under 200 ms (${ms} ms)" || bad "banner took ${ms} ms"
+if grep -qE 'curl|wget|gog |python' "$REPO_ROOT/.claude/scripts/banner.sh"; then
+  bad "banner must use local files only (no network, no Python)"
+else
+  ok "banner calls no network tool and no Python"
+fi
+
+# ===========================================================================
 group "fixture hygiene"
 # ===========================================================================
 leaks="$("$PY" - "$REPO_ROOT" <<'PY'

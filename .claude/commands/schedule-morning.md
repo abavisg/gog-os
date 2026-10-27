@@ -6,8 +6,8 @@ Purpose: manage the local launchd agent that runs the read-only morning email
 triage automatically (Phase 4.6 §7). The scheduled run does reconcile → fetch →
 normalise → classify → report per account, posts one macOS notification with
 the counts, and **stops** — it never moves email and never opens a browser.
-When you open Claude Code afterwards, the SessionStart nudge offers
-`/start-day` with this morning's counts.
+When you open Claude Code afterwards, the SessionStart banner offers
+`/start-day` until today's panel exists.
 
 ## Argument
 
